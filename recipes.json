@@ -1,0 +1,296 @@
+[
+    {
+        "machine": "Foundry",
+        "ingredients": [
+            ["Iron Ore", 45],
+            ["Coal Ore", 45]
+        ],
+        "products": [
+            ["Steel Ingot", 45]
+        ]
+    },
+    {
+        "machine": "Constructor",
+        "ingredients": [
+            ["Iron Ingot", 30]
+        ],
+        "products": [
+            ["Iron Plate", 20]
+        ]
+    },
+    {
+        "machine": "Constructor",
+        "ingredients": [
+            ["Iron Ingot", 15]
+        ],
+        "products": [
+            ["Iron Rod", 15]
+        ]
+    },
+    {
+        "machine": "Constructor",
+        "ingredients": [
+            ["Iron Rod", 10]
+        ],
+        "products": [
+            ["Screw", 40]
+        ]
+    },
+    {
+        "machine": "Constructor",
+        "ingredients": [
+            ["Copper Ingot", 20]
+        ],
+        "products": [
+            ["Copper Sheet", 10]
+        ]
+    },
+    {
+        "machine": "Constructor",
+        "ingredients": [
+            ["Steel Ingot", 60]
+        ],
+        "products": [
+            ["Steel Beam", 15]
+        ]
+    },
+    {
+        "machine": "Constructor",
+        "ingredients": [
+            ["Steel Ingot", 30]
+        ],
+        "products": [
+            ["Steel Pipe", 20]
+        ]
+    },
+    {
+        "machine": "Constructor",
+        "ingredients": [
+            ["Steel Ingot", 60]
+        ],
+        "products": [
+            ["Steel Beam", 15]
+        ]
+    },
+    {
+        "machine": "Constructor",
+        "ingredients": [
+            ["Copper Ingot", 15]
+        ],
+        "products": [
+            ["Wire", 30]
+        ]
+    },
+    {
+        "machine": "Constructor",
+        "ingredients": [
+            ["Wire", 60]
+        ],
+        "products": [
+            ["Cable", 30]
+        ]
+    },
+    {
+        "machine": "Constructor",
+        "ingredients": [
+            ["Limestone", 45]
+        ],
+        "products": [
+            ["Concrete", 15]
+        ]
+    },
+    {
+        "machine": "Constructor",
+        "ingredients": [
+            ["Limestone", 45]
+        ],
+        "products": [
+            ["Concrete", 15]
+        ]
+    },
+    {
+        "machine": "Constructor",
+        "ingredients": [
+            ["Plastic", 30]
+        ],
+        "products": [
+            ["Empty Canister", 60]
+        ]
+    },
+    {
+        "machine": "Assembler",
+        "ingredients": [
+            ["Iron Plate", 30],
+            ["Screw", 60]
+        ],
+        "products": [
+            ["Reinforced Iron Plate", 5]
+        ]
+    },
+    {
+        "machine": "Assembler",
+        "ingredients": [
+            ["Reinforced Iron Plate", 3],
+            ["Iron Rod", 12]
+        ],
+        "products": [
+            ["Modular Frame", 2]
+        ]
+    },
+    {
+        "machine": "Assembler",
+        "ingredients": [
+            ["Steel Beam", 24],
+            ["Concrete", 30]
+        ],
+        "products": [
+            ["Encased Industrial Beam", 6]
+        ]
+    },
+    {
+        "machine": "Assembler",
+        "ingredients": [
+            ["Iron Rod", 20],
+            ["Screw", 100]
+        ],
+        "products": [
+            ["Rotor", 4]
+        ]
+    },
+    {
+        "machine": "Assembler",
+        "ingredients": [
+            ["Steel Pipe", 15],
+            ["Wire", 40]
+        ],
+        "products": [
+            ["Stator", 5]
+        ]
+    },
+    {
+        "machine": "Assembler",
+        "ingredients": [
+            ["Rotor", 10],
+            ["Stator", 10]
+        ],
+        "products": [
+            ["Motor", 5]
+        ]
+    },
+    {
+        "machine": "Assembler",
+        "ingredients": [
+            ["Reinforced Iron Plate", 2],
+            ["Rotor", 2]
+        ],
+        "products": [
+            ["Smart Plating", 2]
+        ]
+    },
+    {
+        "machine": "Assembler",
+        "ingredients": [
+            ["Modular Frame", 2.5],
+            ["Steel Beam", 30]
+        ],
+        "products": [
+            ["Versatile Framework", 5]
+        ]
+    },
+    {
+        "machine": "Assembler",
+        "ingredients": [
+            ["Stator", 2.5],
+            ["Cable", 50]
+        ],
+        "products": [
+            ["Automated Wiring", 2.5]
+        ]
+    },
+    {
+        "machine": "Assembler",
+        "ingredients": [
+            ["Copper Sheet", 15],
+            ["Plastic", 30]
+        ],
+        "products": [
+            ["Circuit Board", 7.5]
+        ]
+    },
+    {
+        "machine": "Manufacturer",
+        "ingredients": [
+            ["Motor", 2],
+            ["Rubber", 15],
+            ["Smart Plating", 2]
+        ],
+        "products": [
+            ["Modular Engine", 1]
+        ]
+    },
+    {
+        "machine": "Manufacturer",
+        "ingredients": [
+            ["Automated Wiring", 7.5],
+            ["Circuit Board", 5],
+            ["Heavy Modular Frame", 1],
+            ["Computer", 1]
+        ],
+        "products": [
+            ["Adaptive Control Unit", 1]
+        ]
+    },
+    {
+        "machine": "Manufacturer",
+        "ingredients": [
+            ["Modular Frame", 10],
+            ["Steel Pipe", 30],
+            ["Encased Industrial Beam", 10],
+            ["Screw", 200]
+        ],
+        "products": [
+            ["Heavy Modular Frame", 2]
+        ]
+    },
+    {
+        "machine": "Manufacturer",
+        "ingredients": [
+            ["Circuit Board", 25],
+            ["Cable", 22.5],
+            ["Plastic", 45],
+            ["Screw", 130]
+        ],
+        "products": [
+            ["Computer", 2.5]
+        ]
+    },
+    {
+        "machine": "Refinery",
+        "ingredients": [
+            ["Crude Oil", 30]
+        ],
+        "products": [
+            ["Plastic", 20],
+            ["Heavy Oil Residue", 10]
+        ]
+    },
+    {
+        "machine": "Refinery",
+        "ingredients": [
+            ["Crude Oil", 30]
+        ],
+        "products": [
+            ["Rubber", 20],
+            ["Heavy Oil Residue", 20]
+        ]
+    },
+    {
+        "machine": "Refinery",
+        "ingredients": [
+            ["Heavy Oil Residue", 60]
+        ],
+        "products": [
+            ["Fuel", 40]
+        ]
+    }
+]
