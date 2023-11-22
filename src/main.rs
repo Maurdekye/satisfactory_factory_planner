@@ -347,7 +347,6 @@ fn parse_product_list(
 fn main() {
     // parse arguments
     let args = Args::parse();
-    // let args = Args::parse_from(vec!["_", "computer", "iron ingot, copper ingot"]);
 
     // Compute recipe map
     let recipes: HashMap<String, Recipe> =
