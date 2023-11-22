@@ -8,6 +8,71 @@ Additionally, tell it what resources you have access to, and it will adjust its 
 
 --- 
 
+### Sample Output
+
+```
+>satisfactory_factory_planner.exe "computer: 5"
+Tree:
+ * 5.00 Computer: 2.00 Manufacturer
+   * 50.00 Circuit Board: 6.67 Assembler
+     * 100.00 Copper Sheet: 10.00 Constructor
+       * 200.00 Copper Ingot: 6.67 Smeltery
+         - 200.00 Copper Ore
+     * 200.00 Plastic: 10.00 Refinery
+       - 300.00 Crude Oil
+   * 45.00 Cable: 1.50 Constructor
+     * 90.00 Wire: 3.00 Constructor
+       * 45.00 Copper Ingot: 1.50 Smeltery
+         - 45.00 Copper Ore
+   * 90.00 Plastic: 4.50 Refinery
+     - 135.00 Crude Oil
+   * 260.00 Screw: 6.50 Constructor
+     * 65.00 Iron Rod: 4.33 Constructor
+       * 65.00 Iron Ingot: 2.17 Smeltery
+         - 65.00 Iron Ore
+
+Input ingredient totals:
+ * 65.00 Iron Ore
+ * 245.00 Copper Ore
+ * 435.00 Crude Oil
+
+Intermediate ingredient totals:
+ * 65.00 Iron Rod
+ * 260.00 Screw
+ * 65.00 Iron Ingot
+ * 45.00 Cable
+ * 245.00 Copper Ingot
+ * 290.00 Plastic
+ * 50.00 Circuit Board
+ * 100.00 Copper Sheet
+ * 90.00 Wire
+
+Output product totals:
+ * 5.00 Computer
+
+Byproducts:
+ * 20.00 Heavy Oil Residues
+
+Machines:
+ * Assembler
+   - 6.67 for Circuit Boards
+ * Manufacturer
+   - 2.00 for Computers
+ * Refinery
+   - 14.50 for Plastics
+ * Constructor
+   - 3.00 for Wires
+   - 10.00 for Copper Sheets
+   - 6.50 for Screws
+   - 1.50 for Cables
+   - 4.33 for Iron Rods
+ * Smeltery
+   - 2.17 for Iron Ingots
+   - 8.17 for Copper Ingots
+```
+
+---
+
 ### Example Usages
 
 * `satisfactory_factory_planner.exe "iron ingot: 120"` - Figure out how much iron ore & how many smelters you need to produce 120 iron ingots per minute
