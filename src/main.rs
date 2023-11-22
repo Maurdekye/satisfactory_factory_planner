@@ -11,10 +11,6 @@ struct Args {
 
     /// Ingredients that you have access to, in the form `<name>:<rate>,<name>:<rate>` etc.
     have: Option<String>,
-
-    /// Limit production output to only use what is provided as accessible
-    #[arg(short, long, action = clap::ArgAction::SetTrue)]
-    limit_to_accessible: bool,
 }
 
 #[derive(Deserialize, Clone)]
@@ -255,7 +251,6 @@ fn resolve_product_dependencies(
     recipes: &HashMap<String, Recipe>,
     products: Vec<(String, Option<f32>)>,
     ingredients: Vec<(String, Option<f32>)>,
-    limit_to_available_ingredients: bool,
 ) -> DependencyResolutionResult {
     let mut dependency_resolution_result = DependencyResolutionResult {
         dependency_trees: vec![],
@@ -316,10 +311,9 @@ fn resolve_product_dependencies(
 
     // adjust totals based on excess & passed arguments
     greatest_excess.map(|excess| {
-        if !products.iter().any(|(_, quantity)| quantity.is_some())
-            || (limit_to_available_ingredients && excess > 1.0)
-        {
-            dependency_resolution_result.adjust_values(1.0 / excess);}
+        if !products.iter().any(|(_, quantity)| quantity.is_some()) || excess > 1.0 {
+            dependency_resolution_result.adjust_values(1.0 / excess);
+        }
     });
 
     dependency_resolution_result
@@ -339,16 +333,14 @@ fn parse_product_list(raw: &String) -> Vec<(String, Option<f32>)> {
 }
 
 fn main() {
-
     // parse arguments
     // let args = Args::parse();
     let args = Args::parse_from(vec![
         "satisfactory_factory_planner",
-        "Computer",
-        "Plastic:40",
-        "--limit-to-accessible",
+        "Computer:10",
+        "Plastic:1500,Iron Ingot:30",
     ]);
-    
+
     // Compute recipe map
     let recipes: HashMap<String, Recipe> =
         serde_json::from_str::<Vec<Recipe>>(fs::read_to_string("recipes.json").unwrap().as_str())
@@ -371,8 +363,7 @@ fn main() {
     let result = resolve_product_dependencies(
         &recipes,
         require_list,
-        have_list.unwrap_or_else(|| Vec::new()),
-        args.limit_to_accessible,
+        have_list.unwrap_or_else(|| Vec::new())
     );
 
     // Display result
