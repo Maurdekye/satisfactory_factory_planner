@@ -31,6 +31,7 @@ struct Source {
     machine: String,
     machine_quantity: f32,
     ingredients: Vec<Product>,
+    byproducts: Vec<Product>,
 }
 
 #[derive(Clone)]
@@ -41,16 +42,20 @@ struct Product {
 }
 
 impl Product {
-    fn recursive_adjust_totals(&mut self, adjust_by: f32) {
-        self.quantity *= adjust_by;
+    fn adjust_quantities(&mut self, adjustment: f32) {
+        self.quantity *= adjustment;
         self.source
             .iter_mut()
             .map(|source| {
-                source.machine_quantity *= adjust_by;
+                source.machine_quantity *= adjustment;
                 source
                     .ingredients
                     .iter_mut()
-                    .for_each(|inner_product| inner_product.recursive_adjust_totals(adjust_by));
+                    .for_each(|inner_product| inner_product.adjust_quantities(adjustment));
+                source
+                    .byproducts
+                    .iter_mut()
+                    .for_each(|inner_product| inner_product.adjust_quantities(adjustment));
             })
             .count();
     }
@@ -92,6 +97,16 @@ impl Display for ProductDisplay {
                     }
                     .fmt(f)?;
                 }
+                for byproduct in source.byproducts.iter() {
+                    writeln!(
+                        f,
+                        "{:>indent$} > {:.2} {}",
+                        "",
+                        byproduct.quantity,
+                        byproduct.name,
+                        indent = self.indent,
+                    )?;
+                }
             }
             None => {
                 writeln!(
@@ -108,96 +123,103 @@ impl Display for ProductDisplay {
     }
 }
 
-struct DependencyResolutionResult {
-    dependency_trees: Vec<Product>,
-    intermediate_totals: HashMap<String, f32>,
-    input_totals: HashMap<String, f32>,
-    byproducts: HashMap<String, f32>,
-    machine_totals: HashMap<String, HashMap<String, f32>>,
+trait DefaultDict<K: Eq + PartialEq + std::hash::Hash + Clone, V: Default> {
+    fn get_default(&mut self, key: &K) -> &mut V;
 }
 
-impl DependencyResolutionResult {
-    fn adjust_values(&mut self, adjustment: f32) {
-        self.dependency_trees
-            .iter_mut()
-            .for_each(|product| product.recursive_adjust_totals(adjustment));
-        self.input_totals = self
-            .input_totals
-            .iter()
-            .map(|(ingredient, quantity)| (ingredient.clone(), quantity * adjustment))
-            .collect();
-        self.intermediate_totals = self
-            .intermediate_totals
-            .iter()
-            .map(|(ingredient, quantity)| (ingredient.clone(), quantity * adjustment))
-            .collect();
-        self.machine_totals = self
-            .machine_totals
-            .iter()
-            .map(|(machine, ingredient_totals)| {
-                (
-                    machine.clone(),
-                    ingredient_totals
-                        .into_iter()
-                        .map(|(ingredient, quantity)| (ingredient.clone(), quantity * adjustment))
-                        .collect(),
-                )
-            })
-            .collect();
-        self.byproducts = self
-            .byproducts
-            .iter()
-            .map(|(ingredient, quantity)| (ingredient.clone(), quantity * adjustment))
-            .collect();
+impl<K: Eq + PartialEq + std::hash::Hash + Clone, V: Default> DefaultDict<K, V> for HashMap<K, V> {
+    fn get_default(&mut self, key: &K) -> &mut V {
+        self.entry(key.clone()).or_insert(V::default())
     }
 }
 
-struct DependencyResolutionResultDisplay {
-    dependency_resolution_result: DependencyResolutionResult,
+struct DependencyResolutionTotals {
+    inputs: HashMap<String, f32>,
+    intermediate_ingredients: HashMap<String, f32>,
+    outputs: HashMap<String, f32>,
+    byproducts: HashMap<String, f32>,
+    machines: HashMap<String, HashMap<String, f32>>,
+}
+
+impl DependencyResolutionTotals {
+    fn new() -> DependencyResolutionTotals {
+        DependencyResolutionTotals {
+            inputs: HashMap::new(),
+            intermediate_ingredients: HashMap::new(),
+            outputs: HashMap::new(),
+            byproducts: HashMap::new(),
+            machines: HashMap::new(),
+        }
+    }
+
+    fn from(dependency_trees: &Vec<Product>) -> DependencyResolutionTotals {
+        let mut totals = DependencyResolutionTotals::new();
+        totals.tally_trees(dependency_trees);
+        totals
+    }
+
+    fn tally_trees(&mut self, dependency_trees: &Vec<Product>) {
+        dependency_trees.iter().for_each(|product| {
+            // tally outputs
+            *self.outputs.get_default(&product.name) += product.quantity;
+
+            // tally sub-nodes
+            self.tally_node(product);
+        })
+    }
+
+    fn tally_node(&mut self, node: &Product) {
+        node.source.as_ref().map(|source| {
+            // tally machine counts
+            *self
+                .machines
+                .get_default(&source.machine)
+                .get_default(&node.name) += source.machine_quantity;
+
+            // tally byproducts
+            source.byproducts.iter().for_each(|product| {
+                *self.byproducts.get_default(&product.name) += product.quantity
+            });
+
+            // tally intermediate ingredients, inputs, and sub-nodes
+            source.ingredients.iter().for_each(|product| {
+                if product.source.is_some() {
+                    *self.intermediate_ingredients.get_default(&product.name) += product.quantity;
+                    self.tally_node(product);
+                } else {
+                    *self.inputs.get_default(&product.name) += product.quantity;
+                }
+            });
+        });
+    }
+}
+
+struct DependencyResolutionTotalsDisplay {
+    totals: DependencyResolutionTotals,
     show_perfect_splits: bool,
 }
 
-impl Display for DependencyResolutionResultDisplay {
+impl Display for DependencyResolutionTotalsDisplay {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "Tree:")?;
-        for dependency_tree in self.dependency_resolution_result.dependency_trees.iter() {
-            dependency_tree.fmt(f)?;
-        }
 
-        writeln!(f)?;
-
-        writeln!(f, "Input ingredient totals:")?;
-        for (product, quantity) in self.dependency_resolution_result.input_totals.iter() {
-            writeln!(f, " * {:.2} {}", quantity, product)?;
-        }
-
-        writeln!(f)?;
-
-        writeln!(f, "Intermediate ingredient totals:")?;
-        for (product, quantity) in self.dependency_resolution_result.intermediate_totals.iter() {
-            writeln!(f, " * {:.2} {}", quantity, product)?;
-        }
-
-        writeln!(f)?;
-
-        writeln!(f, "Output product totals:")?;
-        for product in self.dependency_resolution_result.dependency_trees.iter() {
-            writeln!(f, " * {:.2} {}", product.quantity, product.name)?;
-        }
-
-        writeln!(f)?;
-
-        if !self.dependency_resolution_result.byproducts.is_empty() {
-            writeln!(f, "Byproducts:")?;
-            for (product, quantity) in self.dependency_resolution_result.byproducts.iter() {
-                writeln!(f, " * {:.2} {}", quantity, product)?;
+        for (heading, product_list) in vec![
+            ("Input ingredient totals:", &self.totals.inputs),
+            ("Intermediate ingredient totals:", &self.totals.intermediate_ingredients),
+            ("Output product totals:", &self.totals.outputs),
+            ("Byproducts:", &self.totals.byproducts)
+        ] {
+            if !product_list.is_empty() {
+                writeln!(f, "{heading}")?;
+                for (product, quantity) in product_list.iter() {
+                    writeln!(f, " * {:.2} {}", quantity, product)?;
+                }
+        
+                writeln!(f)?;
             }
-
-            writeln!(f)?;
         }
 
         writeln!(f, "Machines:")?;
-        for (machine, machine_products) in self.dependency_resolution_result.machine_totals.iter() {
+        for (machine, machine_products) in self.totals.machines.iter() {
             writeln!(f, " * {}", machine)?;
             for (product, quantity) in machine_products.iter() {
                 if self.show_perfect_splits {
@@ -255,7 +277,6 @@ fn resolve_product_dependencies_(
     recipes: &HashMap<String, Recipe>,
     product: Product,
     ingredients: &Vec<String>,
-    dependency_resolution_result: &mut DependencyResolutionResult,
 ) -> Product {
     let mut product = product;
 
@@ -265,12 +286,6 @@ fn resolve_product_dependencies_(
         recipes.get(&product.name)
     } {
         Some(recipe) => {
-            // log intermediate products
-            *dependency_resolution_result
-                .intermediate_totals
-                .entry(product.name.clone())
-                .or_insert(0.0) += product.quantity;
-
             // determine production ratio
             let production_ratio = product.quantity
                 / recipe
@@ -280,28 +295,27 @@ fn resolve_product_dependencies_(
                     .expect("Recipe in value missing product from its key?!")
                     .1;
 
-            // log byproducts
-            for (recipe_product, quantity) in recipe.products.iter() {
-                if *recipe_product != product.name {
-                    *dependency_resolution_result
-                        .byproducts
-                        .entry(recipe_product.clone())
-                        .or_insert(0.0) += quantity * production_ratio;
-                }
-            }
-
-            // log machine requirement
-            *dependency_resolution_result
-                .machine_totals
-                .entry(recipe.machine.clone())
-                .or_insert(HashMap::new())
-                .entry(product.name.clone())
-                .or_insert(0.0) += production_ratio;
-
             // compute ingredient dependencies
             product.source = Some(Source {
                 machine: recipe.machine.clone(),
                 machine_quantity: production_ratio,
+
+                byproducts: recipe
+                    .products
+                    .iter()
+                    .filter_map(|(recipe_product, quantity)| {
+                        if *recipe_product != product.name {
+                            Some(Product {
+                                name: recipe_product.clone(),
+                                quantity: quantity * production_ratio,
+                                source: None,
+                            })
+                        } else {
+                            None
+                        }
+                    })
+                    .collect(),
+
                 ingredients: recipe
                     .ingredients
                     .iter()
@@ -314,19 +328,12 @@ fn resolve_product_dependencies_(
                                 source: None,
                             },
                             ingredients,
-                            dependency_resolution_result,
                         )
                     })
                     .collect(),
             });
         }
-        None => {
-            // log input product total
-            *dependency_resolution_result
-                .input_totals
-                .entry(product.name.clone())
-                .or_insert(0.0) += product.quantity;
-        }
+        None => (),
     };
     product
 }
@@ -335,21 +342,14 @@ fn resolve_product_dependencies(
     recipes: &HashMap<String, Recipe>,
     products: Vec<(String, Option<f32>)>,
     ingredients: Vec<(String, Option<f32>)>,
-) -> DependencyResolutionResult {
-    let mut dependency_resolution_result = DependencyResolutionResult {
-        dependency_trees: vec![],
-        input_totals: HashMap::new(),
-        intermediate_totals: HashMap::new(),
-        machine_totals: HashMap::new(),
-        byproducts: HashMap::new(),
-    };
+) -> (Vec<Product>, DependencyResolutionTotals) {
     let ingredient_names = ingredients
         .iter()
         .map(|(product, _)| product.clone())
         .collect();
 
-    // construct dependency tree & tally ingredient, machine, + byproduct quantities
-    dependency_resolution_result.dependency_trees = products
+    // construct dependency tree
+    let mut dependency_trees = products
         .iter()
         .map(|(product, quantity)| {
             resolve_product_dependencies_(
@@ -369,26 +369,18 @@ fn resolve_product_dependencies(
                     source: None,
                 },
                 &ingredient_names,
-                &mut dependency_resolution_result,
             )
         })
         .collect();
 
-    // remove final products from intermediate product tally
-    dependency_resolution_result
-        .intermediate_totals
-        .retain(|ingredient, _| {
-            products
-                .iter()
-                .find(|(product, _)| ingredient == product)
-                .is_none()
-        });
+    // tally ingredient, machine, + byproduct quantities
+    let mut totals = DependencyResolutionTotals::from(&dependency_trees);
 
     // compute greatest excess of individual required ingredients vs available ingredients
     let greatest_excess = ingredients
         .iter()
-        .filter_map(|(ingredient, maybe_quantity)| {
-            match dependency_resolution_result.input_totals.get(ingredient) {
+        .filter_map(
+            |(ingredient, maybe_quantity)| match totals.inputs.get(ingredient) {
                 Some(ingredient_quantity) => maybe_quantity.map(|available_ingredient_quantity| {
                     (
                         ingredient.clone(),
@@ -396,19 +388,22 @@ fn resolve_product_dependencies(
                     )
                 }),
                 None => None,
-            }
-        })
+            },
+        )
         .map(|(_, quantity)| quantity)
         .max_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
 
-    // adjust totals based on excess & passed arguments
+    // adjust quantities based on excess & passed arguments
     greatest_excess.map(|excess| {
         if !products.iter().any(|(_, quantity)| quantity.is_some()) || excess > 1.0 {
-            dependency_resolution_result.adjust_values(1.0 / excess);
+            dependency_trees
+                .iter_mut()
+                .for_each(|tree| tree.adjust_quantities(1.0 / excess));
+            totals = DependencyResolutionTotals::from(&dependency_trees);
         }
     });
 
-    dependency_resolution_result
+    (dependency_trees, totals)
 }
 
 fn parse_product_list(
@@ -438,10 +433,7 @@ fn parse_product_list(
 }
 
 fn main() {
-    // parse arguments
-    let args = Args::parse();
-
-    // Compute recipe map
+    // compute recipe map
     let recipes: HashMap<String, Recipe> =
         serde_json::from_str::<Vec<Recipe>>(fs::read_to_string("recipes.json").unwrap().as_str())
             .unwrap()
@@ -456,18 +448,29 @@ fn main() {
             .flatten()
             .collect();
 
+    // parse arguments
+    let args = Args::parse();
+    // let args = Args::parse_from(vec!["_", "plastic:300"]);
+
     let want_list = parse_product_list(&recipes, &args.want);
-    let have_list = args.have.map(|s| parse_product_list(&recipes, &s));
+    let have_list = args
+        .have
+        .map_or_else(|| Vec::new(), |have| parse_product_list(&recipes, &have));
 
     // Compute recipe dependencies
-    let result =
-        resolve_product_dependencies(&recipes, want_list, have_list.unwrap_or_else(|| Vec::new()));
+    let (tree, totals) = resolve_product_dependencies(&recipes, want_list, have_list);
 
-    // Display result
+    // Display tree
+    println!("Tree:");
+    for node in tree {
+        println!("{node}");
+    }
+
+    // Display totals
     println!(
         "{}",
-        DependencyResolutionResultDisplay {
-            dependency_resolution_result: result,
+        DependencyResolutionTotalsDisplay {
+            totals: totals,
             show_perfect_splits: args.show_perfect_splits
         }
     );
