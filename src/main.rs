@@ -5,11 +5,11 @@ use std::{collections::HashMap, fmt::Display, fs};
 
 #[derive(Parser, Debug)]
 struct Args {
-    /// Product(s) to create, in the form `<name>[:rate],<name>[:rate]` etc.
+    /// Product(s) to create, in the form `<name>[:rate][,<name>[:rate]]` etc.
     #[arg(required = true)]
     require: String,
 
-    /// Ingredients that you have access to, in the form `<name>:<rate>,<name>:<rate>` etc.
+    /// Ingredients that you have access to, in the form `<name>[:rate][,<name>[:rate]]` etc.
     have: Option<String>,
 }
 
