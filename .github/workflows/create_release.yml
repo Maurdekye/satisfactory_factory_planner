@@ -37,8 +37,8 @@ jobs:
     - name: Check if release already exists
       id: check_release
       run: |
-        RELEASES=$(curl --silent --show-error --header "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ steps.get_version.outputs.version }}")
-        if [[ "$RELEASES" != "Not Found" ]]; then
+        HTTP_STATUS=$(curl --write-out "%{http_code}" --silent --output /dev/null --header "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ steps.get_version.outputs.version }}")
+        if [[ "$HTTP_STATUS" -ne 404 ]]; then
           echo "Release already exists"
           exit 1
         fi
