@@ -1,0 +1,71 @@
+name: Create Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      description:
+        description: 'Release description'
+        required: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Setup Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: nightly
+        override: true
+
+    - name: Build project
+      run: cargo build --release
+
+    - name: Zip files
+      run: |
+        zip satisfactory_factory_planner.zip target/release/satisfactory_factory_planner.exe recipes.json
+
+    - name: Get version
+      id: get_version
+      run: |
+        VERSION=$(grep -oP 'version = "\K(.*)(?=")' Cargo.toml)
+        echo "::set-output name=version::$VERSION"
+
+    - name: Check if release already exists
+      id: check_release
+      run: |
+        RELEASES=$(curl --silent --show-error --header "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ steps.get_version.outputs.version }}")
+        if [[ "$RELEASES" != "Not Found" ]]; then
+          echo "Release already exists"
+          exit 1
+        fi
+
+    - name: Create Draft Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ steps.get_version.outputs.version }}
+        release_name: ${{ steps.get_version.outputs.version }}
+        body: ${{ github.event.inputs.description }}
+        draft: true
+        prerelease: false
+
+    - name: Upload Release Asset
+      id: upload_release_asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./satisfactory_factory_planner.zip
+        asset_name: satisfactory_factory_planner.zip
+        asset_content_type: application/zip
+
+    - name: Publish Release
+      run: |
+        curl --silent --show-error --header "Authorization: token ${{ secrets.GITHUB_TOKEN }}" --request PATCH --data '{"draft": false}' "https://api.github.com/repos/${{ github.repository }}/releases/${{ steps.create_release.outputs.id }}"
