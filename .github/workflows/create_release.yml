@@ -52,7 +52,7 @@ jobs:
     - name: Get commit messages
       id: get_commits
       run: |
-        COMMITS=$(git log $(git describe --tags --abbrev=0)..HEAD --pretty=format:"- %s")
+        COMMITS=$(git log $(git rev-list --tags --max-count=1)..HEAD --pretty=format:"- %s")
         echo "::set-output name=commits::$COMMITS"
 
     - name: Create Release and Upload Asset
