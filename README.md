@@ -26,7 +26,7 @@ Additionally, tell it what resources you have access to, and it will adjust its 
 
 ### Installation
 
-Simply download the release zip, unzip `satisfactory_factory_planner.exe` and `recipes.json` to a folder, and run the executable from a command line.
+[Download the latest release zip](https://github.com/Maurdekye/satisfactory_factory_planner/releases), unzip `satisfactory_factory_planner.exe` and `recipes.json` to a folder, and run the executable from a command line.
 
 ---
 
