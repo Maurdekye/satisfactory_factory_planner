@@ -154,7 +154,7 @@ impl DependencyResolutionResult {
 
 struct DependencyResolutionResultDisplay {
     dependency_resolution_result: DependencyResolutionResult,
-    show_perfect_splits: bool
+    show_perfect_splits: bool,
 }
 
 impl Display for DependencyResolutionResultDisplay {
@@ -204,7 +204,16 @@ impl Display for DependencyResolutionResultDisplay {
                     let round_up = quantity.ceil() as usize;
                     let (splitters_2, splitters_3) = nearest_perfect_split(round_up).unwrap();
                     let perfect_split_quantity = 2usize.pow(splitters_2) * 3usize.pow(splitters_3);
-                    writeln!(f, "   - {:.2} for {}s, or 2^{} * 3^{} = {} at {:.2}%", quantity, product, splitters_2, splitters_3, perfect_split_quantity, (quantity / perfect_split_quantity as f32) * 100.0)?;
+                    writeln!(
+                        f,
+                        "   - {:.2} for {}s, or 2^{} * 3^{} = {} at {:.2}%",
+                        quantity,
+                        product,
+                        splitters_2,
+                        splitters_3,
+                        perfect_split_quantity,
+                        (quantity / perfect_split_quantity as f32) * 100.0
+                    )?;
                 } else {
                     writeln!(f, "   - {:.2} for {}s", quantity, product)?;
                 }
@@ -262,8 +271,16 @@ fn resolve_product_dependencies_(
                 .entry(product.name.clone())
                 .or_insert(0.0) += product.quantity;
 
-            // determine production ratio / log byproducts
-            let production_ratio = product.quantity / recipe.products.iter().find(|(recipe_product, _)| *recipe_product == product.name).expect("Recipe in value missing product from its key?!").1;
+            // determine production ratio
+            let production_ratio = product.quantity
+                / recipe
+                    .products
+                    .iter()
+                    .find(|(recipe_product, _)| *recipe_product == product.name)
+                    .expect("Recipe in value missing product from its key?!")
+                    .1;
+
+            // log byproducts
             for (recipe_product, quantity) in recipe.products.iter() {
                 if *recipe_product != product.name {
                     *dependency_resolution_result
@@ -447,8 +464,11 @@ fn main() {
         resolve_product_dependencies(&recipes, want_list, have_list.unwrap_or_else(|| Vec::new()));
 
     // Display result
-    println!("{}", DependencyResolutionResultDisplay {
-        dependency_resolution_result: result,
-        show_perfect_splits: args.show_perfect_splits
-    });
+    println!(
+        "{}",
+        DependencyResolutionResultDisplay {
+            dependency_resolution_result: result,
+            show_perfect_splits: args.show_perfect_splits
+        }
+    );
 }
