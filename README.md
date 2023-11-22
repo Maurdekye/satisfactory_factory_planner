@@ -33,7 +33,7 @@ Additionally, tell it what resources you have access to, and it will adjust its 
 ### Known Flaws
 
 * Byproducts are not utilized in the production chain; they are simply ignored
-* If multiple recipes to acquire a given resource exist, the program will simply choose one and use that. To ensure the program uses a specific recipe, you'll have to edit `recipes.json` and remove all alternative recipes.
+* If multiple recipes to acquire a given resource exist, the program will choose one arbitrarily and use it exclusively. To ensure the program uses a specific recipe, you'll have to edit `recipes.json` and remove all alternative recipes.
 
 ---
 
