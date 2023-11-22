@@ -334,12 +334,7 @@ fn parse_product_list(raw: &String) -> Vec<(String, Option<f32>)> {
 
 fn main() {
     // parse arguments
-    // let args = Args::parse();
-    let args = Args::parse_from(vec![
-        "satisfactory_factory_planner",
-        "Computer:10",
-        "Plastic:1500,Iron Ingot:30",
-    ]);
+    let args = Args::parse();
 
     // Compute recipe map
     let recipes: HashMap<String, Recipe> =
