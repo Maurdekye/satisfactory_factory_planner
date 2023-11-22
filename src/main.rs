@@ -7,7 +7,7 @@ use std::{collections::HashMap, fmt::Display, fs};
 struct Args {
     /// Product(s) to create, in the form `<name>[:rate][,<name>[:rate]]` etc.
     #[arg(required = true)]
-    require: String,
+    want: String,
 
     /// Ingredients that you have access to, in the form `<name>[:rate][,<name>[:rate]]` etc.
     have: Option<String>,
@@ -351,7 +351,7 @@ fn main() {
             .flatten()
             .collect();
 
-    let require_list = parse_product_list(&args.require);
+    let require_list = parse_product_list(&args.want);
     let have_list = args.have.map(|s| parse_product_list(&s));
 
     // Compute recipe dependencies
