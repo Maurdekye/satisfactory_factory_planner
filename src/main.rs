@@ -319,22 +319,35 @@ fn resolve_product_dependencies(
     dependency_resolution_result
 }
 
-fn parse_product_list(raw: &String) -> Vec<(String, Option<f32>)> {
+fn parse_product_list(
+    recipes: &HashMap<String, Recipe>,
+    raw: &String,
+) -> Vec<(String, Option<f32>)> {
     let part_pattern = Regex::new(r"^([^:]*)(:(\d+(\.\d+)?|\.\d+))?$").unwrap();
     raw.split(",")
-        .map(|part| match part_pattern.captures(part.trim().to_string().to_lowercase().as_str()) {
-            None => panic!("'{part}' is invalid!"),
-            Some(captures) => (
-                String::from(captures.get(1).unwrap().as_str()),
-                captures.get(3).map(|m| m.as_str().parse().unwrap()),
-            ),
-        })
+        .map(
+            |part| match part_pattern.captures(part.trim().to_lowercase().as_str()) {
+                None => panic!("'{part}' is invalid!"),
+                Some(captures) => {
+                    let raw_name = captures.get(1).unwrap().as_str().to_string();
+                    (
+                        recipes
+                            .iter()
+                            .map(|(full_name, _)| full_name)
+                            .find(|full_name| full_name.to_lowercase() == raw_name)
+                            .unwrap_or(&raw_name).clone(),
+                        captures.get(3).map(|m| m.as_str().parse().unwrap()),
+                    )
+                }
+            },
+        )
         .collect()
 }
 
 fn main() {
     // parse arguments
     let args = Args::parse();
+    // let args = Args::parse_from(vec!["_", "computer", "iron ingot, copper ingot"]);
 
     // Compute recipe map
     let recipes: HashMap<String, Recipe> =
@@ -351,14 +364,14 @@ fn main() {
             .flatten()
             .collect();
 
-    let require_list = parse_product_list(&args.want);
-    let have_list = args.have.map(|s| parse_product_list(&s));
+    let want_list = parse_product_list(&recipes, &args.want);
+    let have_list = args.have.map(|s| parse_product_list(&recipes, &s));
 
     // Compute recipe dependencies
     let result = resolve_product_dependencies(
         &recipes,
-        require_list,
-        have_list.unwrap_or_else(|| Vec::new())
+        want_list,
+        have_list.unwrap_or_else(|| Vec::new()),
     );
 
     // Display result
