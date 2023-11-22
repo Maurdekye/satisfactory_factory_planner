@@ -203,9 +203,9 @@ impl Display for DependencyResolutionTotalsDisplay {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 
         for (heading, product_list) in vec![
-            ("Input ingredient totals:", &self.totals.inputs),
-            ("Intermediate ingredient totals:", &self.totals.intermediate_ingredients),
-            ("Output product totals:", &self.totals.outputs),
+            ("Input ingredients:", &self.totals.inputs),
+            ("Intermediate ingredients:", &self.totals.intermediate_ingredients),
+            ("Output products:", &self.totals.outputs),
             ("Byproducts:", &self.totals.byproducts)
         ] {
             if !product_list.is_empty() {
