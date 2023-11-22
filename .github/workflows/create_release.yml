@@ -1,35 +1,25 @@
 name: Create Release
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       description:
         description: 'Release description'
-        required: true
-        
+        required: false
+
 permissions:
   contents: write
   
 jobs:
   build:
     runs-on: ubuntu-latest
-
+    
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
-
-    - name: Setup Rust
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: nightly
-        override: true
-
-    - name: Build project
-      run: cargo build --release
-
-    - name: Zip files
-      run: |
-        zip satisfactory_factory_planner.zip target/release/satisfactory_factory_planner.exe recipes.json
 
     - name: Get version
       id: get_version
@@ -45,12 +35,31 @@ jobs:
           echo "Release already exists"
           exit 1
         fi
+        
+    - name: Setup Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: nightly
+        override: true
+
+    - name: Build project
+      run: cargo build --release
+
+    - name: Zip files
+      run: |
+        zip satisfactory_factory_planner.zip target/release/satisfactory_factory_planner.exe recipes.json
+
+    - name: Get commit messages
+      id: get_commits
+      run: |
+        COMMITS=$(git log $(git describe --tags --abbrev=0)..HEAD --pretty=format:"- %s")
+        echo "::set-output name=commits::$COMMITS"
 
     - name: Create Release and Upload Asset
       uses: softprops/action-gh-release@v1
       with:
         name: v${{ steps.get_version.outputs.version }}
-        body: ${{ github.event.inputs.description }}
+        body: ${{ github.event.inputs.description || steps.get_commits.outputs.commits }}
         tag_name: v${{ steps.get_version.outputs.version }}
         files: |
           satisfactory_factory_planner.zip
