@@ -322,7 +322,7 @@ fn resolve_product_dependencies(
 fn parse_product_list(raw: &String) -> Vec<(String, Option<f32>)> {
     let part_pattern = Regex::new(r"^([^:]*)(:(\d+(\.\d+)?|\.\d+))?$").unwrap();
     raw.split(",")
-        .map(|part| match part_pattern.captures(part) {
+        .map(|part| match part_pattern.captures(part.trim().to_string().to_lowercase().as_str()) {
             None => panic!("'{part}' is invalid!"),
             Some(captures) => (
                 String::from(captures.get(1).unwrap().as_str()),
