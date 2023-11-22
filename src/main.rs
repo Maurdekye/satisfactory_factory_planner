@@ -215,6 +215,7 @@ impl Display for DependencyResolutionResultDisplay {
     }
 }
 
+/// this algorithm is an unholy abomination
 fn nearest_perfect_split(c: usize) -> Option<(u32, u32)> {
     let log_2: f32 = 2.0f32.ln();
     let log_3: f32 = 3.0f32.ln();
