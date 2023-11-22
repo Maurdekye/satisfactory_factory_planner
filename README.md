@@ -51,7 +51,7 @@ Output product totals:
  * 5.00 Computer
 
 Byproducts:
- * 20.00 Heavy Oil Residues
+ * 20.00 Heavy Oil Residue
 
 Machines:
  * Assembler
