@@ -339,6 +339,16 @@ fn parse_product_list(raw: &String) -> Vec<(String, Option<f32>)> {
 }
 
 fn main() {
+
+    // parse arguments
+    // let args = Args::parse();
+    let args = Args::parse_from(vec![
+        "satisfactory_factory_planner",
+        "Computer",
+        "Plastic:40",
+        "--limit-to-accessible",
+    ]);
+    
     // Compute recipe map
     let recipes: HashMap<String, Recipe> =
         serde_json::from_str::<Vec<Recipe>>(fs::read_to_string("recipes.json").unwrap().as_str())
@@ -353,15 +363,6 @@ fn main() {
             })
             .flatten()
             .collect();
-
-    // parse arguments
-    // let args = Args::parse();
-    let args = Args::parse_from(vec![
-        "satisfactory_factory_planner",
-        "Computer",
-        "Plastic:40",
-        "--limit-to-accessible",
-    ]);
 
     let require_list = parse_product_list(&args.require);
     let have_list = args.have.map(|s| parse_product_list(&s));
