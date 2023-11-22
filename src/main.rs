@@ -13,6 +13,10 @@ struct Args {
 
     /// Ingredients that you have access to, in the form `<name>[:rate][,<name>[:rate][...]]` etc.
     have: Option<String>,
+
+    /// Convert final machine counts to perfect split whole numbers, and list the underclocks for them
+    #[arg(long, short, action = clap::ArgAction::SetTrue)]
+    show_perfect_splits: bool,
 }
 
 #[derive(Deserialize, Clone)]
@@ -148,39 +152,44 @@ impl DependencyResolutionResult {
     }
 }
 
-impl Display for DependencyResolutionResult {
+struct DependencyResolutionResultDisplay {
+    dependency_resolution_result: DependencyResolutionResult,
+    show_perfect_splits: bool
+}
+
+impl Display for DependencyResolutionResultDisplay {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "Tree:")?;
-        for dependency_tree in self.dependency_trees.iter() {
+        for dependency_tree in self.dependency_resolution_result.dependency_trees.iter() {
             dependency_tree.fmt(f)?;
         }
 
         writeln!(f)?;
 
         writeln!(f, "Input ingredient totals:")?;
-        for (product, quantity) in self.input_totals.iter() {
+        for (product, quantity) in self.dependency_resolution_result.input_totals.iter() {
             writeln!(f, " * {:.2} {}", quantity, product)?;
         }
 
         writeln!(f)?;
 
         writeln!(f, "Intermediate ingredient totals:")?;
-        for (product, quantity) in self.intermediate_totals.iter() {
+        for (product, quantity) in self.dependency_resolution_result.intermediate_totals.iter() {
             writeln!(f, " * {:.2} {}", quantity, product)?;
         }
 
         writeln!(f)?;
 
         writeln!(f, "Output product totals:")?;
-        for product in self.dependency_trees.iter() {
+        for product in self.dependency_resolution_result.dependency_trees.iter() {
             writeln!(f, " * {:.2} {}", product.quantity, product.name)?;
         }
 
         writeln!(f)?;
 
-        if !self.byproducts.is_empty() {
+        if !self.dependency_resolution_result.byproducts.is_empty() {
             writeln!(f, "Byproducts:")?;
-            for (product, quantity) in self.byproducts.iter() {
+            for (product, quantity) in self.dependency_resolution_result.byproducts.iter() {
                 writeln!(f, " * {:.2} {}", quantity, product)?;
             }
 
@@ -188,15 +197,48 @@ impl Display for DependencyResolutionResult {
         }
 
         writeln!(f, "Machines:")?;
-        for (machine, machine_products) in self.machine_totals.iter() {
+        for (machine, machine_products) in self.dependency_resolution_result.machine_totals.iter() {
             writeln!(f, " * {}", machine)?;
             for (product, quantity) in machine_products.iter() {
-                writeln!(f, "   - {:.2} for {}s", quantity, product)?;
+                if self.show_perfect_splits {
+                    let round_up = quantity.ceil() as usize;
+                    let (splitters_2, splitters_3) = nearest_perfect_split(round_up).unwrap();
+                    let perfect_split_quantity = 2usize.pow(splitters_2) * 3usize.pow(splitters_3);
+                    writeln!(f, "   - {:.2} for {}s, or 2^{} * 3^{} = {} at {:.2}%", quantity, product, splitters_2, splitters_3, perfect_split_quantity, (quantity / perfect_split_quantity as f32) * 100.0)?;
+                } else {
+                    writeln!(f, "   - {:.2} for {}s", quantity, product)?;
+                }
             }
         }
 
         Ok(())
     }
+}
+
+fn nearest_perfect_split(c: usize) -> Option<(u32, u32)> {
+    let log_2: f32 = 2.0f32.ln();
+    let log_3: f32 = 3.0f32.ln();
+    let log2_log3: f32 = log_2 / log_3;
+
+    let log_c: f32 = (c as f32).ln();
+    let b: f32 = log_c / log_3;
+    let d: f32 = log_c / log_2;
+    let f = |x: f32| b - log2_log3 * x;
+    let dist = |x: f32, y: f32| ((-log2_log3) * x - y + b).abs();
+    let mut closest = None;
+    let mut closest_dist = None;
+    for x in 0..=(d.ceil() as u32) {
+        let y = f(x as f32).ceil() as i32;
+        let new_dist = dist(x as f32, y as f32);
+        if closest_dist.map_or(true, |c_dist| new_dist < c_dist) {
+            closest = Some((x, y));
+            if new_dist == 0.0 {
+                break;
+            }
+            closest_dist = Some(new_dist);
+        }
+    }
+    closest.map(|(x, y)|(x, y as u32))
 }
 
 fn resolve_product_dependencies_(
@@ -384,7 +426,8 @@ fn parse_product_list(
 
 fn main() {
     // parse arguments
-    let args = Args::parse();
+    // let args = Args::parse();
+    let args = Args::parse_from(vec!["_", "computer: 23", "--show-perfect-splits"]);
 
     // Compute recipe map
     let recipes: HashMap<String, Recipe> =
@@ -409,5 +452,8 @@ fn main() {
         resolve_product_dependencies(&recipes, want_list, have_list.unwrap_or_else(|| Vec::new()));
 
     // Display result
-    println!("{result}");
+    println!("{}", DependencyResolutionResultDisplay {
+        dependency_resolution_result: result,
+        show_perfect_splits: args.show_perfect_splits
+    });
 }
