@@ -232,14 +232,14 @@ fn nearest_perfect_split(c: usize) -> Option<(u32, u32)> {
         let y = f(x as f32).ceil() as i32;
         let new_dist = dist(x as f32, y as f32);
         if closest_dist.map_or(true, |c_dist| new_dist < c_dist) {
-            closest = Some((x, y));
+            closest = Some((x, y as u32));
             if new_dist == 0.0 {
                 break;
             }
             closest_dist = Some(new_dist);
         }
     }
-    closest.map(|(x, y)|(x, y as u32))
+    closest
 }
 
 fn resolve_product_dependencies_(
@@ -263,20 +263,15 @@ fn resolve_product_dependencies_(
                 .or_insert(0.0) += product.quantity;
 
             // determine production ratio / log byproducts
-            let mut maybe_production_ratio = None;
+            let production_ratio = product.quantity / recipe.products.iter().find(|(recipe_product, _)| *recipe_product == product.name).expect("Recipe in value missing product from its key?!").1;
             for (recipe_product, quantity) in recipe.products.iter() {
-                if *recipe_product == product.name {
-                    maybe_production_ratio = Some(product.quantity / quantity);
-                } else {
+                if *recipe_product != product.name {
                     *dependency_resolution_result
                         .byproducts
                         .entry(recipe_product.clone())
-                        .or_insert(0.0) += quantity;
+                        .or_insert(0.0) += quantity * production_ratio;
                 }
             }
-
-            let production_ratio =
-                maybe_production_ratio.expect("Recipe in value missing product from its key?!");
 
             // log machine requirement
             *dependency_resolution_result
