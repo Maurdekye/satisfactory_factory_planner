@@ -181,7 +181,7 @@ impl Display for DependencyResolutionResult {
         if !self.byproducts.is_empty() {
             writeln!(f, "Byproducts:")?;
             for (product, quantity) in self.byproducts.iter() {
-                writeln!(f, " * {:.2} {}s", quantity, product)?;
+                writeln!(f, " * {:.2} {}", quantity, product)?;
             }
 
             writeln!(f)?;
