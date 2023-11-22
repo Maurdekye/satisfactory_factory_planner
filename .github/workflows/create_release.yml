@@ -45,26 +45,16 @@ jobs:
 
     - name: Create Draft Release
       id: create_release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      uses: softprops/action-gh-release@v1
       with:
-        tag_name: v${{ steps.get_version.outputs.version }}
-        release_name: v${{ steps.get_version.outputs.version }}
-        body: ${{ github.event.inputs.description }}
         draft: true
-        prerelease: false
-
-    - name: Upload Release Asset
-      id: upload_release_asset
-      uses: actions/upload-release-asset@v1
+        name: ${{ steps.get_version.outputs.version }}
+        body: ${{ github.event.inputs.description }}
+        tag_name: ${{ steps.get_version.outputs.version }}
+        files: |
+          satisfactory_factory_planner.zip
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./satisfactory_factory_planner.zip
-        asset_name: satisfactory_factory_planner.zip
-        asset_content_type: application/zip
 
     - name: Publish Release
       run: |
