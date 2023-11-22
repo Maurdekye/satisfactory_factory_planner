@@ -3,13 +3,15 @@ use regex::Regex;
 use serde::Deserialize;
 use std::{collections::HashMap, fmt::Display, fs};
 
+/// Satisfactory Factory Planning Utility
 #[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
 struct Args {
-    /// Product(s) to create, in the form `<name>[:rate][,<name>[:rate]]` etc.
+    /// Product(s) to create, in the form `<name>[:rate][,<name>[:rate][...]]` etc.
     #[arg(required = true)]
     want: String,
 
-    /// Ingredients that you have access to, in the form `<name>[:rate][,<name>[:rate]]` etc.
+    /// Ingredients that you have access to, in the form `<name>[:rate][,<name>[:rate][...]]` etc.
     have: Option<String>,
 }
 
@@ -358,7 +360,7 @@ fn parse_product_list(
     recipes: &HashMap<String, Recipe>,
     raw: &String,
 ) -> Vec<(String, Option<f32>)> {
-    let part_pattern = Regex::new(r"^([^:]*)(:(\d+(\.\d+)?|\.\d+))?$").unwrap();
+    let part_pattern = Regex::new(r"^([^:]*)(:\s*(\d+(\.\d+)?|\.\d+))?$").unwrap();
     raw.split(",")
         .map(
             |part| match part_pattern.captures(part.trim().to_lowercase().as_str()) {
