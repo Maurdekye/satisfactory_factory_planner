@@ -426,8 +426,7 @@ fn parse_product_list(
 
 fn main() {
     // parse arguments
-    // let args = Args::parse();
-    let args = Args::parse_from(vec!["_", "computer: 23", "--show-perfect-splits"]);
+    let args = Args::parse();
 
     // Compute recipe map
     let recipes: HashMap<String, Recipe> =
