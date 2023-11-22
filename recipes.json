@@ -292,5 +292,23 @@
         "products": [
             ["Fuel", 40]
         ]
+    },
+    {
+        "machine": "Smeltery",
+        "ingredients": [
+            ["Iron Ore", 30]
+        ],
+        "products": [
+            ["Iron Ingot", 30]
+        ]
+    },
+    {
+        "machine": "Smeltery",
+        "ingredients": [
+            ["Copper Ore", 30]
+        ],
+        "products": [
+            ["Copper Ingot", 30]
+        ]
     }
 ]
