@@ -27,37 +27,45 @@ struct Recipe {
 }
 
 #[derive(Clone)]
-struct Source {
-    machine: String,
-    machine_quantity: f32,
-    ingredients: Vec<Product>,
-    byproducts: Vec<Product>,
+enum Source {
+    Recipe {
+        machine: String,
+        machine_quantity: f32,
+        ingredients: Vec<Product>,
+        byproducts: Vec<(String, f32)>,
+    },
+    Supply,
+    Byproduct,
 }
 
 #[derive(Clone)]
 struct Product {
     name: String,
-    quantity: f32,
-    source: Option<Source>,
+    unsupplied: f32,
+    sources: Vec<(Source, f32)>,
 }
 
 impl Product {
     fn adjust_quantities(&mut self, adjustment: f32) {
-        self.quantity *= adjustment;
-        self.source
-            .iter_mut()
-            .map(|source| {
-                source.machine_quantity *= adjustment;
-                source
-                    .ingredients
-                    .iter_mut()
-                    .for_each(|inner_product| inner_product.adjust_quantities(adjustment));
-                source
-                    .byproducts
-                    .iter_mut()
-                    .for_each(|inner_product| inner_product.adjust_quantities(adjustment));
-            })
-            .count();
+        self.unsupplied *= adjustment;
+        for (ref mut source, ref mut quantity) in self.sources.iter_mut() {
+            *quantity *= adjustment;
+            match source {
+                Source::Recipe {
+                    ingredients,
+                    byproducts,
+                    ..
+                } => {
+                    ingredients
+                        .iter_mut()
+                        .for_each(|ingredient| ingredient.adjust_quantities(adjustment));
+                    byproducts
+                        .iter_mut()
+                        .for_each(|(_, byproduct_quantity)| *byproduct_quantity *= adjustment);
+                }
+                _ => (),
+            }
+        }
     }
 }
 
@@ -78,45 +86,62 @@ struct ProductDisplay {
 
 impl Display for ProductDisplay {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match &self.product.source {
-            Some(source) => {
-                writeln!(
-                    f,
-                    "{:>indent$} * {:.2} {}: {:.2} {}",
-                    "",
-                    self.product.quantity,
-                    self.product.name,
-                    source.machine_quantity,
-                    source.machine,
-                    indent = self.indent,
-                )?;
-                for sub_product in source.ingredients.iter() {
-                    ProductDisplay {
-                        product: sub_product.clone(),
-                        indent: self.indent + 2,
-                    }
-                    .fmt(f)?;
-                }
-                for byproduct in source.byproducts.iter() {
+        for (source, quantity) in &self.product.sources {
+            match source {
+                Source::Recipe {
+                    machine,
+                    machine_quantity,
+                    ingredients,
+                    byproducts,
+                } => {
                     writeln!(
                         f,
-                        "{:>indent$} > {:.2} {}",
+                        "{:>indent$} * {:.2} {}: {:.2} {}",
                         "",
-                        byproduct.quantity,
-                        byproduct.name,
+                        quantity,
+                        self.product.name,
+                        machine_quantity,
+                        machine,
+                        indent = self.indent,
+                    )?;
+                    for sub_product in ingredients.iter() {
+                        ProductDisplay {
+                            product: sub_product.clone(),
+                            indent: self.indent + 2,
+                        }
+                        .fmt(f)?;
+                    }
+                    for (byproduct, byproduct_quantity) in byproducts.iter() {
+                        writeln!(
+                            f,
+                            "{:>indent$} > {:.2} {}",
+                            "",
+                            byproduct_quantity,
+                            byproduct,
+                            indent = self.indent,
+                        )?;
+                    }
+                }
+                Source::Supply => {
+                    writeln!(
+                        f,
+                        "{:>indent$} - {:.2} {}",
+                        "",
+                        quantity,
+                        self.product.name,
                         indent = self.indent,
                     )?;
                 }
-            }
-            None => {
-                writeln!(
-                    f,
-                    "{:indent$} - {:.2} {}",
-                    "",
-                    self.product.quantity,
-                    self.product.name,
-                    indent = self.indent
-                )?;
+                Source::Byproduct => {
+                    writeln!(
+                        f,
+                        "{:>indent$} < {:.2} {}",
+                        "",
+                        quantity,
+                        self.product.name,
+                        indent = self.indent,
+                    )?;
+                }
             }
         }
         Ok(())
@@ -161,7 +186,9 @@ impl DependencyResolutionTotals {
     fn tally_trees(&mut self, dependency_trees: &Vec<Product>) {
         dependency_trees.iter().for_each(|product| {
             // tally outputs
-            *self.outputs.get_default(&product.name) += product.quantity;
+            for (_, quantity) in &product.sources {
+                *self.outputs.get_default(&product.name) += quantity;
+            }
 
             // tally sub-nodes
             self.tally_node(product);
@@ -169,28 +196,43 @@ impl DependencyResolutionTotals {
     }
 
     fn tally_node(&mut self, node: &Product) {
-        node.source.as_ref().map(|source| {
-            // tally machine counts
-            *self
-                .machines
-                .get_default(&source.machine)
-                .get_default(&node.name) += source.machine_quantity;
+        for (source, _) in &node.sources {
+            match source {
+                Source::Recipe {
+                    machine,
+                    machine_quantity,
+                    ingredients,
+                    byproducts,
+                } => {
+                    // tally machine counts
+                    *self.machines.get_default(&machine).get_default(&node.name) +=
+                        machine_quantity;
 
-            // tally byproducts
-            source.byproducts.iter().for_each(|product| {
-                *self.byproducts.get_default(&product.name) += product.quantity
-            });
+                    // tally byproducts
+                    byproducts.iter().for_each(|(product, quantity)| {
+                        *self.byproducts.get_default(&product) += quantity
+                    });
 
-            // tally intermediate ingredients, inputs, and sub-nodes
-            source.ingredients.iter().for_each(|product| {
-                if product.source.is_some() {
-                    *self.intermediate_ingredients.get_default(&product.name) += product.quantity;
-                    self.tally_node(product);
-                } else {
-                    *self.inputs.get_default(&product.name) += product.quantity;
+                    // tally intermediate ingredients, inputs, and sub-nodes
+                    ingredients.iter().for_each(|product| {
+                        for (sub_source, quantity) in &product.sources {
+                            match sub_source {
+                                Source::Recipe { .. } => {
+                                    *self.intermediate_ingredients.get_default(&product.name) +=
+                                        quantity;
+                                    self.tally_node(product);
+                                }
+                                Source::Supply => {
+                                    *self.inputs.get_default(&product.name) += quantity;
+                                }
+                                Source::Byproduct => (),
+                            }
+                        }
+                    });
                 }
-            });
-        });
+                _ => (),
+            }
+        }
     }
 }
 
@@ -201,19 +243,21 @@ struct DependencyResolutionTotalsDisplay {
 
 impl Display for DependencyResolutionTotalsDisplay {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-
         for (heading, product_list) in vec![
             ("Input ingredients:", &self.totals.inputs),
-            ("Intermediate ingredients:", &self.totals.intermediate_ingredients),
+            (
+                "Intermediate ingredients:",
+                &self.totals.intermediate_ingredients,
+            ),
             ("Output products:", &self.totals.outputs),
-            ("Byproducts:", &self.totals.byproducts)
+            ("Byproducts:", &self.totals.byproducts),
         ] {
             if !product_list.is_empty() {
                 writeln!(f, "{heading}")?;
                 for (product, quantity) in product_list.iter() {
                     writeln!(f, " * {:.2} {}", quantity, product)?;
                 }
-        
+
                 writeln!(f)?;
             }
         }
@@ -223,9 +267,9 @@ impl Display for DependencyResolutionTotalsDisplay {
             writeln!(f, " * {}", machine)?;
             for (product, quantity) in machine_products.iter() {
                 if self.show_perfect_splits {
-                    let round_up = quantity.ceil() as usize;
-                    let (splitters_2, splitters_3) = nearest_perfect_split(round_up).unwrap();
-                    let perfect_split_quantity = 2usize.pow(splitters_2) * 3usize.pow(splitters_3);
+                    let round_up = quantity.ceil() as u32;
+                    let (splitters_2, splitters_3, perfect_split_quantity) =
+                        nearest_perfect_split(round_up).unwrap();
                     writeln!(
                         f,
                         "   - {:.2} for {}s, or 2^{} * 3^{} = {} at {:.2}%",
@@ -247,39 +291,49 @@ impl Display for DependencyResolutionTotalsDisplay {
 }
 
 /// this algorithm is an unholy abomination
-fn nearest_perfect_split(c: usize) -> Option<(u32, u32)> {
+fn nearest_perfect_split(base_machine_count: u32) -> Option<(u32, u32, u32)> {
+    let uceil = |x: f32| x.ceil() as u32;
     let log_2: f32 = 2.0f32.ln();
     let log_3: f32 = 3.0f32.ln();
     let log2_log3: f32 = log_2 / log_3;
 
-    let log_c: f32 = (c as f32).ln();
+    let log_c: f32 = (base_machine_count as f32).ln();
     let b: f32 = log_c / log_3;
-    let d: f32 = log_c / log_2;
-    let f = |x: f32| b - log2_log3 * x;
-    let dist = |x: f32, y: f32| ((-log2_log3) * x - y + b).abs();
-    let mut closest = None;
-    let mut closest_dist = None;
-    for x in 0..=(d.ceil() as u32) {
-        let y = f(x as f32).ceil() as i32;
-        let new_dist = dist(x as f32, y as f32);
+    let f = |x: u32| uceil(b - log2_log3 * x as f32);
+    let mut result: Option<(u32, u32, u32)> = None;
+    let mut closest_dist: Option<u32> = None;
+    let mut x_pow2: u32 = 1;
+    let mut last_y: u32 = f(0);
+    let mut y_pow3: u32 = last_y.pow(3);
+    for x in 0..=uceil(log_c / log_2) {
+        let y = f(x);
+        if y != last_y {
+            if y == last_y - 1 {
+                y_pow3 /= 3;
+            } else {
+                y_pow3 = (y).pow(3);
+            }
+            last_y = y;
+        }
+        let split_value = x_pow2 * y_pow3;
+        let new_dist = split_value - base_machine_count;
         if closest_dist.map_or(true, |c_dist| new_dist < c_dist) {
-            closest = Some((x, y as u32));
-            if new_dist == 0.0 {
+            result = Some((x, y, split_value));
+            if new_dist == 0 {
                 break;
             }
             closest_dist = Some(new_dist);
         }
+        x_pow2 <<= 1;
     }
-    closest
+    result
 }
 
 fn resolve_product_dependencies_(
     recipes: &HashMap<String, Recipe>,
-    product: Product,
+    mut product: Product,
     ingredients: &Vec<String>,
 ) -> Product {
-    let mut product = product;
-
     match if ingredients.contains(&product.name) {
         None
     } else {
@@ -287,7 +341,7 @@ fn resolve_product_dependencies_(
     } {
         Some(recipe) => {
             // determine production ratio
-            let production_ratio = product.quantity
+            let production_ratio = product.unsupplied
                 / recipe
                     .products
                     .iter()
@@ -296,45 +350,48 @@ fn resolve_product_dependencies_(
                     .1;
 
             // compute ingredient dependencies
-            product.source = Some(Source {
-                machine: recipe.machine.clone(),
-                machine_quantity: production_ratio,
+            product.sources.push((
+                Source::Recipe {
+                    machine: recipe.machine.clone(),
+                    machine_quantity: production_ratio,
 
-                byproducts: recipe
-                    .products
-                    .iter()
-                    .filter_map(|(recipe_product, quantity)| {
-                        if *recipe_product != product.name {
-                            Some(Product {
-                                name: recipe_product.clone(),
-                                quantity: quantity * production_ratio,
-                                source: None,
-                            })
-                        } else {
-                            None
-                        }
-                    })
-                    .collect(),
+                    byproducts: recipe
+                        .products
+                        .iter()
+                        .filter_map(|(recipe_product, quantity)| {
+                            if *recipe_product != product.name {
+                                Some((recipe_product.clone(), quantity * production_ratio))
+                            } else {
+                                None
+                            }
+                        })
+                        .collect(),
 
-                ingredients: recipe
-                    .ingredients
-                    .iter()
-                    .map(|(recipe_product, quantity)| {
-                        resolve_product_dependencies_(
-                            recipes,
-                            Product {
-                                name: recipe_product.clone(),
-                                quantity: quantity * production_ratio,
-                                source: None,
-                            },
-                            ingredients,
-                        )
-                    })
-                    .collect(),
-            });
+                    ingredients: recipe
+                        .ingredients
+                        .iter()
+                        .map(|(recipe_product, quantity)| {
+                            resolve_product_dependencies_(
+                                recipes,
+                                Product {
+                                    name: recipe_product.clone(),
+                                    unsupplied: quantity * production_ratio,
+                                    sources: Vec::new(),
+                                },
+                                ingredients,
+                            )
+                        })
+                        .collect(),
+                },
+                product.unsupplied,
+            ));
         }
-        None => (),
+        None => {
+            product.sources.push((Source::Supply, product.unsupplied));
+        }
     };
+    product.unsupplied = 0.0;
+
     product
 }
 
@@ -355,7 +412,7 @@ fn resolve_product_dependencies(
             resolve_product_dependencies_(
                 recipes,
                 Product {
-                    quantity: quantity.unwrap_or_else(|| {
+                    unsupplied: quantity.unwrap_or_else(|| {
                         recipes.get(product).map_or(1.0, |recipe| {
                             recipe
                                 .products
@@ -366,7 +423,7 @@ fn resolve_product_dependencies(
                         })
                     }),
                     name: product.clone(),
-                    source: None,
+                    sources: Vec::new(),
                 },
                 &ingredient_names,
             )
