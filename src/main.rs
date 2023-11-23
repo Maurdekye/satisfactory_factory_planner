@@ -308,14 +308,14 @@ fn nearest_perfect_split(base_machine_count: u32) -> Option<(u32, u32, u32)> {
     let mut closest_dist: Option<u32> = None;
     let mut x_pow2: u32 = 1;
     let mut last_y: u32 = f(0);
-    let mut y_pow3: u32 = last_y.pow(3);
+    let mut y_pow3: u32 = 3u32.pow(last_y);
     for x in 0..=uceil(log_c / log_2) {
         let y = f(x);
         if y != last_y {
             if y == last_y - 1 {
                 y_pow3 /= 3;
             } else {
-                y_pow3 = (y).pow(3);
+                y_pow3 = 3u32.pow(y);
             }
             last_y = y;
         }
@@ -587,7 +587,7 @@ fn main() {
 
     // parse arguments
     let args = Args::parse();
-    // let args = Args::parse_from(vec!["_", "iron rod:15", "iron ingot:10", "--resupply-insufficient"]);
+    // let args = Args::parse_from(vec!["_", "iron rod:15", "iron ingot:10", "--resupply-insufficient", "--show-perfect-splits"]);
 
     let want_list = parse_product_list(&recipes, &args.want);
     let have_list = args
