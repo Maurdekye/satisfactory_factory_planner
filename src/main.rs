@@ -444,6 +444,7 @@ fn apply_insufficient_supply_proportions(
             _ => (),
         }
     }
+    product.sources.retain(|(_, quantity)| *quantity > 0.0);
 }
 
 fn create_dependency_trees(
@@ -500,20 +501,52 @@ fn create_dependency_trees(
         .collect::<Vec<_>>();
 
     if resupply_insufficient {
-        // compute resources which are insufficient
+        // compute totals for all products with specific requested quantities
+        let quantified_products = products
+            .iter()
+            .filter_map(|(product_name, quantity)| quantity.map(|_| product_name))
+            .collect::<Vec<_>>();
+
+        let mut quantified_trees = dependency_trees
+            .iter_mut()
+            .filter(|root| quantified_products.contains(&&root.name))
+            .collect::<Vec<_>>();
+
+        let quantified_totals = DependencyResolutionTotals::from(&quantified_trees.iter().map(|product| (**product).clone()).collect());
+
+        // compute resources which are insufficient for those products
+        let excesses = ingredients
+            .iter()
+            .filter_map(
+                |(ingredient, maybe_quantity)| match quantified_totals.inputs.get(ingredient) {
+                    Some(ingredient_quantity) => {
+                        maybe_quantity.map(|available_ingredient_quantity| {
+                            (
+                                ingredient.clone(),
+                                ingredient_quantity / available_ingredient_quantity,
+                            )
+                        })
+                    }
+                    None => None,
+                },
+            )
+            .collect::<Vec<_>>();
+
         let resupply_proportions = excesses
             .iter()
             .filter(|(_, excess)| *excess > 1.0)
             .map(|(product, excess)| (product.clone(), 1.0 / excess))
             .collect::<HashMap<_, _>>();
 
-        // resupply insufficient resources
-        for tree in dependency_trees.iter_mut() {
+        // resupply insufficient resources for resources with specific rates
+        for tree in quantified_trees.iter_mut()
+        {
             apply_insufficient_supply_proportions(recipes, tree, &resupply_proportions);
             resolve_product_dependencies(
                 recipes,
                 tree,
-                &ingredient_names.clone()
+                &ingredient_names
+                    .clone()
                     .into_iter()
                     .filter(|ingredient| !resupply_proportions.contains_key(ingredient))
                     .collect(),
@@ -522,6 +555,8 @@ fn create_dependency_trees(
 
         // re-tally counts
         totals = DependencyResolutionTotals::from(&dependency_trees);
+
+
     } else {
         // compute greatest excess of individual required ingredients vs available ingredients
         let greatest_excess: Option<f32> = excesses
@@ -541,6 +576,72 @@ fn create_dependency_trees(
     }
 
     (dependency_trees, totals)
+}
+
+fn compute_supply_proportions(totals: &DependencyResolutionTotals, ingredients: &Vec<(String, Option<f32>)>) -> Vec<(String, f32)> {
+    ingredients
+        .iter()
+        .filter_map(
+            |(ingredient, maybe_quantity)| match totals.inputs.get(ingredient) {
+                Some(ingredient_quantity) => maybe_quantity.map(|available_ingredient_quantity| {
+                    (
+                        ingredient.clone(),
+                        available_ingredient_quantity / ingredient_quantity,
+                    )
+                }),
+                None => None,
+            },
+        )
+        .collect()
+}
+
+fn resolve_dependency_trees(
+    recipes: &HashMap<String, Recipe>,
+    products: Vec<(String, Option<f32>)>,
+    mut ingredients: Vec<(String, Option<f32>)>,
+    resupply_insufficient: bool,
+) -> (Vec<Product>, DependencyResolutionTotals) {
+
+    let mut quantity_requested_trees = products.iter().filter_map(|(name, maybe_quantity)| maybe_quantity.map(|quantity| Product {
+        name: name.clone(),
+        unsupplied: quantity,
+        sources: Vec::new()
+    })).collect::<Vec<_>>();
+
+    if !quantity_requested_trees.is_empty() {
+        let ingredient_set = ingredients.iter().map(|(i, _)| i.clone()).collect();
+        for tree in &mut quantity_requested_trees {
+            resolve_product_dependencies(recipes, tree, &ingredient_set);
+        }
+    
+        let mut quantity_requested_tally = DependencyResolutionTotals::from(&quantity_requested_trees);
+    
+        let initial_supply_proportions = compute_supply_proportions(&quantity_requested_tally, &ingredients);
+    
+        let insufficient_ingredients = initial_supply_proportions.clone().into_iter().filter(|(_, proportion)| *proportion < 1.0).collect::<HashMap<_, _>>();
+
+        if !insufficient_ingredients.is_empty() {
+            if resupply_insufficient {
+                let ingredient_set_sans_resupplies = ingredients.iter().filter(|(ingredient, _)| !insufficient_ingredients.contains_key(ingredient)).map(|(ingredient, _)| ingredient.clone()).collect();
+                for tree in &mut quantity_requested_trees {
+                    apply_insufficient_supply_proportions(recipes, tree, &insufficient_ingredients);
+                    resolve_product_dependencies(recipes, tree, &ingredient_set_sans_resupplies);
+                }
+            } else {
+                let lowest_supply = initial_supply_proportions.iter().map(|(_, quantity)| *quantity).min_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+                lowest_supply.map(|supply| {
+                    for tree in &mut quantity_requested_trees {
+                        tree.adjust_quantities(supply);
+                    }
+                });
+            }
+            quantity_requested_tally = DependencyResolutionTotals::from(&quantity_requested_trees);
+        }
+
+        
+    }
+
+    (Vec::new(), DependencyResolutionTotals::new())
 }
 
 fn parse_product_list(
