@@ -245,8 +245,9 @@ impl Display for DependencyResolutionTotals {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         DependencyResolutionTotalsDisplay {
             totals: self,
-            show_perfect_splits: false
-        }.fmt(f)
+            show_perfect_splits: false,
+        }
+        .fmt(f)
     }
 }
 
@@ -487,147 +488,167 @@ fn resolve_dependency_trees(
     // dbg!(&ingredients);
 
     // fetch list of requests with specific quantities
-    let mut quantity_requested_trees = products
-        .iter()
-        .filter_map(|(name, maybe_quantity)| {
-            maybe_quantity.map(|quantity| Product {
-                name: name.clone(),
-                unsupplied: quantity,
-                sources: Vec::new(),
+    let quantity_requested_trees = {
+        let mut trees = products
+            .iter()
+            .filter_map(|(name, maybe_quantity)| {
+                maybe_quantity.map(|quantity| Product {
+                    name: name.clone(),
+                    unsupplied: quantity,
+                    sources: Vec::new(),
+                })
             })
-        })
-        .collect::<Vec<_>>();
-    // dbg!(&quantity_requested_trees);
+            .collect::<Vec<_>>();
+        // dbg!(&trees);
 
-    if !quantity_requested_trees.is_empty() {
-        let ingredient_set = ingredients.iter().map(|(i, _)| i.clone()).collect();
-        // dbg!(&ingredient_set);
-        for tree in &mut quantity_requested_trees {
-            resolve_product_dependencies(recipes, tree, &ingredient_set);
-        }
-        // dbg!(&quantity_requested_trees);
+        if !trees.is_empty() {
+            let ingredient_set = ingredients.iter().map(|(i, _)| i.clone()).collect();
+            // dbg!(&ingredient_set);
+            for tree in &mut trees {
+                resolve_product_dependencies(recipes, tree, &ingredient_set);
+            }
+            // dbg!(&trees);
 
-        let mut quantity_requested_tally =
-            DependencyResolutionTotals::from(&quantity_requested_trees);
-        // dbg!(&quantity_requested_tally);
+            let mut totals = DependencyResolutionTotals::from(&trees);
+            // dbg!(&totals);
 
-        let initial_supply_proportions =
-            compute_supply_proportions(&quantity_requested_tally, &ingredients);
-        // dbg!(&initial_supply_proportions);
+            let initial_supply_proportions =
+                compute_supply_proportions(&totals, &ingredients);
+            // dbg!(&initial_supply_proportions);
 
-        let insufficient_ingredients = initial_supply_proportions
-            .clone()
-            .into_iter()
-            .filter(|(_, proportion)| *proportion < 1.0)
-            .collect::<HashMap<_, _>>();
-        // dbg!(&insufficient_ingredients);
+            let insufficient_ingredients = initial_supply_proportions
+                .clone()
+                .into_iter()
+                .filter(|(_, proportion)| *proportion < 1.0)
+                .collect::<HashMap<_, _>>();
+            // dbg!(&insufficient_ingredients);
 
-        // adjust output if some provided quantities are insufficient
-        if !insufficient_ingredients.is_empty() {
-            if resupply_insufficient {
-                // resupply insufficient supplies
-                let ingredient_set_sans_resupplies = ingredients
-                    .iter()
-                    .filter(|(ingredient, _)| !insufficient_ingredients.contains_key(*ingredient))
-                    .map(|(ingredient, _)| ingredient.clone())
-                    .collect();
-                // dbg!(&ingredient_set_sans_resupplies);
+            // adjust output if some provided quantities are insufficient
+            if !insufficient_ingredients.is_empty() {
+                if resupply_insufficient {
+                    // resupply insufficient supplies
+                    let ingredient_set_sans_resupplies = ingredients
+                        .iter()
+                        .filter(|(ingredient, _)| {
+                            !insufficient_ingredients.contains_key(*ingredient)
+                        })
+                        .map(|(ingredient, _)| ingredient.clone())
+                        .collect();
+                    // dbg!(&ingredient_set_sans_resupplies);
 
-                for tree in &mut quantity_requested_trees {
-                    apply_insufficient_supply_proportions(recipes, tree, &insufficient_ingredients);
-                    resolve_product_dependencies(recipes, tree, &ingredient_set_sans_resupplies);
-                }
-                // dbg!(&quantity_requested_trees);
-
-            } else {
-                // adjust output to accommodate for lowest supplied ingredient
-                let lowest_supply = initial_supply_proportions
-                    .iter()
-                    .map(|(_, quantity)| *quantity)
-                    .min_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-                // dbg!(&lowest_supply);
-
-                lowest_supply.map(|supply| {
-                    for tree in &mut quantity_requested_trees {
-                        tree.adjust_quantities(supply);
+                    for tree in &mut trees {
+                        apply_insufficient_supply_proportions(
+                            recipes,
+                            tree,
+                            &insufficient_ingredients,
+                        );
+                        resolve_product_dependencies(
+                            recipes,
+                            tree,
+                            &ingredient_set_sans_resupplies,
+                        );
                     }
                     // dbg!(&quantity_requested_trees);
-                });
-            }
-            quantity_requested_tally = DependencyResolutionTotals::from(&quantity_requested_trees);
-            // dbg!(&quantity_requested_tally);
-        }
+                } else {
+                    // adjust output to accommodate for lowest supplied ingredient
+                    let lowest_supply = initial_supply_proportions
+                        .iter()
+                        .map(|(_, quantity)| *quantity)
+                        .min_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+                    // dbg!(&lowest_supply);
 
-        // adjust available ingredients
-        for (ingredient, used_quantity) in quantity_requested_tally.inputs.iter() {
-            if ingredients.contains_key(ingredient) {
-                ingredients.entry(ingredient.clone()).and_modify(|entry| {
-                    *entry = entry
-                        .map(|available_quantity| (available_quantity - used_quantity).max(0.0))
-                });
+                    lowest_supply.map(|supply| {
+                        for tree in &mut trees {
+                            tree.adjust_quantities(supply);
+                        }
+                        // dbg!(&quantity_requested_trees);
+                    });
+                }
+                totals = DependencyResolutionTotals::from(&trees);
+                // dbg!(&totals);
             }
+
+            // adjust available ingredients
+            for (ingredient, used_quantity) in totals.inputs.iter() {
+                if ingredients.contains_key(ingredient) {
+                    ingredients.entry(ingredient.clone()).and_modify(|entry| {
+                        *entry = entry
+                            .map(|available_quantity| (available_quantity - used_quantity).max(0.0))
+                    });
+                }
+            }
+            // dbg!(&ingredients);
         }
-        // dbg!(&ingredients);
-    }
+        trees
+    };
 
     // fetch list of resources without specified quantities
-    let mut quantity_unrequested_trees = products
-        .iter()
-        .filter_map(|(name, maybe_quantity)| match maybe_quantity {
-            None => Some(Product {
-                name: name.clone(),
-                unsupplied: recipes.get(name).map(|recipe| {
-                    recipe
-                        .products
-                        .iter()
-                        .find(|(p, _)| p == name)
-                        .map(|(_, q)| q.clone())
-                }).unwrap_or(Some(1.0)).unwrap_or(1.0),
-                sources: Vec::new(),
-            }),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    // dbg!(&quantity_unrequested_trees);
-
-    if !quantity_unrequested_trees.is_empty() {
-        let ingredient_set = ingredients.iter().map(|(i, _)| i.clone()).collect();
-        // dbg!(&ingredient_set);
-        for tree in &mut quantity_unrequested_trees {
-            resolve_product_dependencies(recipes, tree, &ingredient_set);
-        }
-        // dbg!(&quantity_unrequested_trees);
-
-        let quantity_unrequested_tally =
-            DependencyResolutionTotals::from(&quantity_unrequested_trees);
-        // dbg!(&quantity_unrequested_tally);
-
-        let initial_supply_proportions =
-            compute_supply_proportions(&quantity_unrequested_tally, &ingredients);
-        // dbg!(&initial_supply_proportions);
-
-        // adjust output to acommodate for lowest supplied ingredient
-        let lowest_supply = initial_supply_proportions
+    let quantity_unrequested_trees = {
+        let mut trees = products
             .iter()
-            .map(|(_, quantity)| *quantity)
-            .min_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-        // dbg!(&lowest_supply);
+            .filter_map(|(name, maybe_quantity)| match maybe_quantity {
+                None => Some(Product {
+                    name: name.clone(),
+                    unsupplied: recipes
+                        .get(name)
+                        .map(|recipe| {
+                            recipe
+                                .products
+                                .iter()
+                                .find(|(p, _)| p == name)
+                                .map(|(_, q)| q.clone())
+                        })
+                        .unwrap_or(Some(1.0))
+                        .unwrap_or(1.0),
+                    sources: Vec::new(),
+                }),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        // dbg!(&trees);
 
-        lowest_supply.map(|supply| {
-            for tree in &mut quantity_unrequested_trees {
-                tree.adjust_quantities(supply);
+        if !trees.is_empty() {
+            let ingredient_set = ingredients.iter().map(|(i, _)| i.clone()).collect();
+            // dbg!(&ingredient_set);
+            for tree in &mut trees {
+                resolve_product_dependencies(recipes, tree, &ingredient_set);
             }
-            // dbg!(&quantity_unrequested_trees);
-        });
-    }
+            // dbg!(&trees);
 
-    let all_trees = quantity_requested_trees.into_iter().chain(quantity_unrequested_trees.into_iter()).collect();
-    // dbg!(&all_trees);
+            let totals = DependencyResolutionTotals::from(&trees);
+            // dbg!(&totals);
 
-    let totals = DependencyResolutionTotals::from(&all_trees);
+            let initial_supply_proportions =
+                compute_supply_proportions(&totals, &ingredients);
+            // dbg!(&initial_supply_proportions);
+
+            // adjust output to acommodate for lowest supplied ingredient
+            let lowest_supply = initial_supply_proportions
+                .iter()
+                .map(|(_, quantity)| *quantity)
+                .min_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+            // dbg!(&lowest_supply);
+
+            lowest_supply.map(|supply| {
+                for tree in &mut trees {
+                    tree.adjust_quantities(supply);
+                }
+                // dbg!(&trees);
+            });
+        }
+        trees
+    };
+
+    let trees = quantity_requested_trees
+        .into_iter()
+        .chain(quantity_unrequested_trees.into_iter())
+        .collect();
+    // dbg!(&trees);
+
+    let totals = DependencyResolutionTotals::from(&trees);
     // dbg!(&totals);
 
-    (all_trees, totals)
+    (trees, totals)
 }
 
 fn parse_product_list(
