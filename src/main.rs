@@ -21,6 +21,10 @@ struct Args {
     /// If not enough resources are available, then resupply more to fulfill the requested quota, instead of limiting the output totals
     #[arg(long, short, action = clap::ArgAction::SetTrue)]
     resupply_insufficient: bool,
+
+    /// Config file containing crafting recipes
+    #[arg(long, short, default_value = "recipes.json")]
+    recipes: String
 }
 
 #[derive(Deserialize, Clone)]
@@ -512,8 +516,7 @@ fn resolve_dependency_trees(
             let mut totals = DependencyResolutionTotals::from(&trees);
             // dbg!(&totals);
 
-            let initial_supply_proportions =
-                compute_supply_proportions(&totals, &ingredients);
+            let initial_supply_proportions = compute_supply_proportions(&totals, &ingredients);
             // dbg!(&initial_supply_proportions);
 
             let insufficient_ingredients = initial_supply_proportions
@@ -618,8 +621,7 @@ fn resolve_dependency_trees(
             let totals = DependencyResolutionTotals::from(&trees);
             // dbg!(&totals);
 
-            let initial_supply_proportions =
-                compute_supply_proportions(&totals, &ingredients);
+            let initial_supply_proportions = compute_supply_proportions(&totals, &ingredients);
             // dbg!(&initial_supply_proportions);
 
             // adjust output to acommodate for lowest supplied ingredient
@@ -677,26 +679,31 @@ fn parse_product_list(
         .collect()
 }
 
+fn load_recipes(file: &str) -> HashMap<String, Recipe> {
+    serde_json::from_str::<Vec<Recipe>>(fs::read_to_string(file).unwrap().as_str())
+        .unwrap()
+        .into_iter()
+        .map(|recipe| {
+            recipe
+                .products
+                .iter()
+                .map(|(product, _)| (product.clone(), recipe.clone()))
+                .collect::<Vec<_>>()
+        })
+        .flatten()
+        .collect()
+}
+
 fn main() {
-    // compute recipe map
-    let recipes: HashMap<String, Recipe> =
-        serde_json::from_str::<Vec<Recipe>>(fs::read_to_string("recipes.json").unwrap().as_str())
-            .unwrap()
-            .into_iter()
-            .map(|recipe| {
-                recipe
-                    .products
-                    .iter()
-                    .map(|(product, _)| (product.clone(), recipe.clone()))
-                    .collect::<Vec<_>>()
-            })
-            .flatten()
-            .collect();
 
     // parse arguments
     let args = Args::parse();
     // let args = Args::parse_from(vec!["_", "computer:2.5,cable", "copper ingot:130"]);
 
+    // compute recipe map
+    let recipes = load_recipes(&args.recipes);
+
+    // parse lists of desired outputs and available inputs
     let want_list = parse_product_list(&recipes, &args.want);
     let have_list = args
         .have
@@ -709,6 +716,7 @@ fn main() {
     // Display tree
     println!("Tree:");
     for node in tree {
+
         println!("{node}");
     }
 
