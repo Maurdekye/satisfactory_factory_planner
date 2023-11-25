@@ -24,7 +24,7 @@ struct Args {
 
     /// Config file containing crafting recipes
     #[arg(long, short, default_value = "recipes.json")]
-    recipes: String
+    recipe_config: String
 }
 
 #[derive(Deserialize, Clone)]
@@ -701,7 +701,7 @@ fn main() {
     // let args = Args::parse_from(vec!["_", "computer:2.5,cable", "copper ingot:130"]);
 
     // compute recipe map
-    let recipes = load_recipes(&args.recipes);
+    let recipes = load_recipes(&args.recipe_config);
 
     // parse lists of desired outputs and available inputs
     let want_list = parse_product_list(&recipes, &args.want);
