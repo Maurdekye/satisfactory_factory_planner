@@ -24,8 +24,10 @@ jobs:
     - name: Get version
       id: get_version
       run: |
-        $VERSION = Select-String -Pattern 'version = "\K(.*)(?=")' -Path .\Cargo.toml | % { $_.Matches } | % { $_.Value }
-        echo "::set-output name=version::v$VERSION"
+        $content = Get-Content -Path .\Cargo.toml
+        $versionLine = $content | Select-String -Pattern 'version = ".*"'
+        $version = $versionLine -replace 'version = "', '' -replace '"', ''
+        echo "::set-output name=version::v$version"
 
     - name: Check if release already exists
       id: check_release
