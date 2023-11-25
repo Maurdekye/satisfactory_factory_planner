@@ -16,7 +16,7 @@ permissions:
 jobs:
   build:
     runs-on: windows-latest
-
+    
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
@@ -24,20 +24,18 @@ jobs:
     - name: Get version
       id: get_version
       run: |
-        $VERSION = (Select-String 'version = "(.*)"' Cargo.toml).Matches.Groups[1].Value
+        $VERSION = Select-String -Pattern 'version = "\K(.*)(?=")' -Path .\Cargo.toml | % { $_.Matches } | % { $_.Value }
         echo "::set-output name=version::v$VERSION"
-      shell: pwsh
 
     - name: Check if release already exists
       id: check_release
       run: |
-        $HTTP_STATUS = (Invoke-WebRequest -Uri "https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ steps.get_version.outputs.version }}" -Method HEAD -Headers @{Authorization = "token ${{ secrets.GITHUB_TOKEN }}"}).StatusCode
-        if ($HTTP_STATUS -ne 404) {
-          echo "Release already exists"
+        $HTTP_STATUS = Invoke-WebRequest -Uri "https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ steps.get_version.outputs.version }}" -Headers @{"Authorization"="token ${{ secrets.GITHUB_TOKEN }}"} -Method Get -StatusCodeVariable statusCode -ErrorAction SilentlyContinue
+        if ($statusCode -ne 404) {
+          Write-Host "Release already exists"
           exit 1
         }
-      shell: pwsh
-        
+
     - name: Setup Rust
       uses: actions-rs/toolchain@v1
       with:
@@ -46,17 +44,16 @@ jobs:
 
     - name: Build project
       run: cargo build --release
-
+      
     - name: Zip files
-      run: Compress-Archive -Path target/release/satisfactory_factory_planner.exe, recipes.json -DestinationPath satisfactory_factory_planner.zip
-      shell: pwsh
+      run: |
+        Compress-Archive -Path .\target\release\satisfactory_factory_planner.exe, .\recipes.json -DestinationPath .\satisfactory_factory_planner.zip
 
     - name: Get commit messages
       id: get_commits
       run: |
         $COMMITS = git log $(git rev-list --tags --max-count=1)..HEAD --pretty=format:"- %s"
         echo "::set-output name=commits::$COMMITS"
-      shell: pwsh
 
     - name: Create Release and Upload Asset
       uses: softprops/action-gh-release@v1
