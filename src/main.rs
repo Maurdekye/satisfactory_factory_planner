@@ -3,6 +3,16 @@ use regex::Regex;
 use serde::Deserialize;
 use std::{collections::HashMap, fmt::Display, fs};
 
+#[macro_export]
+macro_rules! debug {
+    ($val:expr) => {
+        #[cfg(debug_assertions)]
+        {
+            dbg!($val);
+        }
+    };
+}
+
 #[derive(Deserialize, Clone)]
 struct Recipe {
     machine: String,
@@ -15,8 +25,8 @@ enum Source {
     Recipe {
         machine: String,
         machine_quantity: f32,
-        ingredients: Vec<Product>,
         byproducts: Vec<(String, f32)>,
+        ingredients: Vec<Product>,
     },
     Supply,
     Byproduct,
@@ -26,13 +36,13 @@ enum Source {
 struct Product {
     name: String,
     unsupplied: f32,
-    sources: Vec<(Source, f32)>,
+    sources: Vec<(f32, Source)>,
 }
 
 impl Product {
     fn adjust_quantities(&mut self, adjustment: f32) {
         self.unsupplied *= adjustment;
-        for (ref mut source, ref mut quantity) in self.sources.iter_mut() {
+        for (ref mut quantity, ref mut source) in self.sources.iter_mut() {
             *quantity *= adjustment;
             match source {
                 Source::Recipe {
@@ -70,7 +80,7 @@ struct ProductDisplay {
 
 impl Display for ProductDisplay {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for (source, quantity) in &self.product.sources {
+        for (quantity, source) in &self.product.sources {
             match source {
                 Source::Recipe {
                     machine,
@@ -171,7 +181,7 @@ impl DependencyResolutionTotals {
     fn tally_trees(&mut self, dependency_trees: &Vec<Product>) {
         dependency_trees.iter().for_each(|product| {
             // tally outputs
-            for (_, quantity) in &product.sources {
+            for (quantity, _) in &product.sources {
                 *self.outputs.get_default(&product.name) += quantity;
             }
 
@@ -181,7 +191,7 @@ impl DependencyResolutionTotals {
     }
 
     fn tally_node(&mut self, node: &Product) {
-        for (source, _) in &node.sources {
+        for (_, source) in &node.sources {
             match source {
                 Source::Recipe {
                     machine,
@@ -200,7 +210,7 @@ impl DependencyResolutionTotals {
 
                     // tally intermediate ingredients, inputs, and sub-nodes
                     ingredients.iter().for_each(|product| {
-                        for (sub_source, quantity) in &product.sources {
+                        for (quantity, sub_source) in &product.sources {
                             match sub_source {
                                 Source::Recipe { .. } => {
                                     *self.intermediate_ingredients.get_default(&product.name) +=
@@ -329,6 +339,20 @@ fn resolve_product_dependencies(
     product: &mut Product,
     available_ingredients: &Vec<String>,
 ) {
+    for (_, source) in product.sources.iter_mut() {
+        match source {
+            Source::Recipe { ingredients, .. } => {
+                for ingredient in ingredients.iter_mut() {
+                    resolve_product_dependencies(
+                        recipes,
+                        ingredient,
+                        available_ingredients,
+                    )
+                }
+            }
+            _ => (),
+        }
+    }
     match if available_ingredients.contains(&product.name) {
         None
     } else {
@@ -347,6 +371,7 @@ fn resolve_product_dependencies(
 
                 // compute ingredient dependencies
                 product.sources.push((
+                    product.unsupplied,
                     Source::Recipe {
                         machine: recipe.machine.clone(),
                         machine_quantity: production_ratio,
@@ -381,28 +406,12 @@ fn resolve_product_dependencies(
                             })
                             .collect(),
                     },
-                    product.unsupplied,
                 ));
-            } else {
-                for (source, _) in product.sources.iter_mut() {
-                    match source {
-                        Source::Recipe { ingredients, .. } => {
-                            for ingredient in ingredients.iter_mut() {
-                                resolve_product_dependencies(
-                                    recipes,
-                                    ingredient,
-                                    available_ingredients,
-                                )
-                            }
-                        }
-                        _ => (),
-                    }
-                }
             }
         }
         None => {
             if product.unsupplied > 0.0 {
-                product.sources.push((Source::Supply, product.unsupplied));
+                product.sources.push((product.unsupplied, Source::Supply));
             }
         }
     };
@@ -414,7 +423,7 @@ fn apply_insufficient_supply_proportions(
     product: &mut Product,
     resupply_proportions: &HashMap<String, f32>,
 ) {
-    for (source, quantity) in product.sources.iter_mut() {
+    for (quantity, source) in product.sources.iter_mut() {
         match source {
             Source::Supply => {
                 resupply_proportions.get(&product.name).map(|proportion| {
@@ -435,7 +444,7 @@ fn apply_insufficient_supply_proportions(
             _ => (),
         }
     }
-    product.sources.retain(|(_, quantity)| *quantity > 0.0);
+    product.sources.retain(|(quantity, _)| *quantity > 0.0);
 }
 
 fn compute_supply_proportions(
@@ -465,7 +474,7 @@ fn resolve_dependency_trees(
     resupply_insufficient: bool,
 ) -> (Vec<Product>, DependencyResolutionTotals) {
     let mut ingredients = ingredients.into_iter().collect::<HashMap<_, _>>();
-    // dbg!(&ingredients);
+    debug!(&ingredients);
 
     // fetch list of requests with specific quantities
     let quantity_requested_trees = {
@@ -479,31 +488,32 @@ fn resolve_dependency_trees(
                 })
             })
             .collect::<Vec<_>>();
-        // dbg!(&trees);
+        debug!(&trees);
 
         if !trees.is_empty() {
             let ingredient_set = ingredients.iter().map(|(i, _)| i.clone()).collect();
-            // dbg!(&ingredient_set);
+            debug!(&ingredient_set);
+
             for tree in &mut trees {
                 resolve_product_dependencies(recipes, tree, &ingredient_set);
             }
-            // dbg!(&trees);
+            debug!(&trees);
 
             let mut totals = DependencyResolutionTotals::from(&trees);
-            // dbg!(&totals);
+            debug!(&totals);
 
             let initial_supply_proportions = compute_supply_proportions(&totals, &ingredients);
-            // dbg!(&initial_supply_proportions);
+            debug!(&initial_supply_proportions);
 
-            let insufficient_ingredients = initial_supply_proportions
+            let mut insufficient_ingredients = initial_supply_proportions
                 .clone()
                 .into_iter()
                 .filter(|(_, proportion)| *proportion < 1.0)
                 .collect::<HashMap<_, _>>();
-            // dbg!(&insufficient_ingredients);
+            debug!(&insufficient_ingredients);
 
             // adjust output if some provided quantities are insufficient
-            if !insufficient_ingredients.is_empty() {
+            while !insufficient_ingredients.is_empty() {
                 if resupply_insufficient {
                     // resupply insufficient supplies
                     let ingredient_set_sans_resupplies = ingredients
@@ -513,7 +523,7 @@ fn resolve_dependency_trees(
                         })
                         .map(|(ingredient, _)| ingredient.clone())
                         .collect();
-                    // dbg!(&ingredient_set_sans_resupplies);
+                    debug!(&ingredient_set_sans_resupplies);
 
                     for tree in &mut trees {
                         apply_insufficient_supply_proportions(
@@ -521,30 +531,38 @@ fn resolve_dependency_trees(
                             tree,
                             &insufficient_ingredients,
                         );
+                        debug!(&tree);
                         resolve_product_dependencies(
                             recipes,
                             tree,
                             &ingredient_set_sans_resupplies,
                         );
                     }
-                    // dbg!(&quantity_requested_trees);
+                    debug!(&trees);
                 } else {
                     // adjust output to accommodate for lowest supplied ingredient
                     let lowest_supply = initial_supply_proportions
                         .iter()
                         .map(|(_, quantity)| *quantity)
                         .min_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-                    // dbg!(&lowest_supply);
+                    debug!(&lowest_supply);
 
                     lowest_supply.map(|supply| {
                         for tree in &mut trees {
                             tree.adjust_quantities(supply);
                         }
-                        // dbg!(&quantity_requested_trees);
+                        debug!(&trees);
                     });
                 }
                 totals = DependencyResolutionTotals::from(&trees);
-                // dbg!(&totals);
+                debug!(&totals);
+
+                insufficient_ingredients = compute_supply_proportions(&totals, &ingredients)
+                    .clone()
+                    .into_iter()
+                    .filter(|(_, proportion)| *proportion < 1.0)
+                    .collect::<HashMap<_, _>>();
+                debug!(&insufficient_ingredients);
             }
 
             // adjust available ingredients
@@ -556,7 +574,7 @@ fn resolve_dependency_trees(
                     });
                 }
             }
-            // dbg!(&ingredients);
+            debug!(&ingredients);
         }
         trees
     };
@@ -584,47 +602,48 @@ fn resolve_dependency_trees(
                 _ => None,
             })
             .collect::<Vec<_>>();
-        // dbg!(&trees);
+        debug!(&trees);
 
         if !trees.is_empty() {
             let ingredient_set = ingredients.iter().map(|(i, _)| i.clone()).collect();
-            // dbg!(&ingredient_set);
+            debug!(&ingredient_set);
+
             for tree in &mut trees {
                 resolve_product_dependencies(recipes, tree, &ingredient_set);
             }
-            // dbg!(&trees);
+            debug!(&trees);
 
             let totals = DependencyResolutionTotals::from(&trees);
-            // dbg!(&totals);
+            debug!(&totals);
 
             let initial_supply_proportions = compute_supply_proportions(&totals, &ingredients);
-            // dbg!(&initial_supply_proportions);
+            debug!(&initial_supply_proportions);
 
             // adjust output to acommodate for lowest supplied ingredient
             let lowest_supply = initial_supply_proportions
                 .iter()
                 .map(|(_, quantity)| *quantity)
                 .min_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-            // dbg!(&lowest_supply);
+            debug!(&lowest_supply);
 
             lowest_supply.map(|supply| {
                 for tree in &mut trees {
                     tree.adjust_quantities(supply);
                 }
-                // dbg!(&trees);
+                debug!(&trees);
             });
         }
         trees
     };
 
-    let trees = quantity_requested_trees
+    let trees: Vec<Product> = quantity_requested_trees
         .into_iter()
         .chain(quantity_unrequested_trees.into_iter())
         .collect();
-    // dbg!(&trees);
+    debug!(&trees);
 
     let totals = DependencyResolutionTotals::from(&trees);
-    // dbg!(&totals);
+    debug!(&totals);
 
     (trees, totals)
 }
@@ -675,7 +694,6 @@ fn load_recipes(file: &str) -> HashMap<String, Recipe> {
 #[command(author, version, about, long_about = None)]
 struct Args {
     /// Product(s) to create, in the form `<name>[:rate][,<name>[:rate][...]]` etc.
-    #[arg(required = true)]
     want: String,
 
     /// Ingredients that you have access to, in the form `<name>[:rate][,<name>[:rate][...]]` etc.
@@ -690,15 +708,16 @@ struct Args {
     resupply_insufficient: bool,
 
     /// Config file containing crafting recipes
-    #[arg(long, short='c', default_value = "recipes.json")]
-    recipe_config: String
+    #[arg(long, short = 'c', default_value = "recipes.json")]
+    recipe_config: String,
 }
 
 fn main() {
-
     // parse arguments
+    #[cfg(not(debug_assertions))]
     let args = Args::parse();
-    // let args = Args::parse_from(vec!["_", "computer:2.5,cable", "copper ingot:130"]);
+    #[cfg(debug_assertions)]
+    let args = Args::parse_from(vec!["_", "modular frame:2", "iron plate:4,iron ingot:20", "--resupply-insufficient"]);
 
     // compute recipe map
     let recipes = load_recipes(&args.recipe_config);
@@ -716,7 +735,6 @@ fn main() {
     // Display tree
     println!("Tree:");
     for node in tree {
-
         println!("{node}");
     }
 
