@@ -26,7 +26,7 @@ jobs:
       shell: pwsh
       run: |
         $content = Get-Content -Path .\Cargo.toml -Raw
-        $version = ($content | ConvertFrom-StringData).version
+        $version = [regex]::match($content, 'version\s*=\s*"([^"]*)"').Groups[1].Value
         echo "::set-output name=version::v$version"
 
     - name: Check if release already exists
