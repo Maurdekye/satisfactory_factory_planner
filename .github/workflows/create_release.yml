@@ -16,7 +16,7 @@ permissions:
 jobs:
   build:
     runs-on: windows-latest
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
@@ -24,17 +24,19 @@ jobs:
     - name: Get version
       id: get_version
       run: |
-        VERSION=$(grep -oP 'version = "\K(.*)(?=")' Cargo.toml)
+        $VERSION = (Select-String 'version = "(.*)"' Cargo.toml).Matches.Groups[1].Value
         echo "::set-output name=version::v$VERSION"
+      shell: pwsh
 
     - name: Check if release already exists
       id: check_release
       run: |
-        HTTP_STATUS=$(curl --write-out "%{http_code}" --silent --output /dev/null --header "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ steps.get_version.outputs.version }}")
-        if [[ "$HTTP_STATUS" -ne 404 ]]; then
+        $HTTP_STATUS = (Invoke-WebRequest -Uri "https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ steps.get_version.outputs.version }}" -Method HEAD -Headers @{Authorization = "token ${{ secrets.GITHUB_TOKEN }}"}).StatusCode
+        if ($HTTP_STATUS -ne 404) {
           echo "Release already exists"
           exit 1
-        fi
+        }
+      shell: pwsh
         
     - name: Setup Rust
       uses: actions-rs/toolchain@v1
@@ -44,16 +46,17 @@ jobs:
 
     - name: Build project
       run: cargo build --release
-      
+
     - name: Zip files
-      run: |
-        zip satisfactory_factory_planner.zip target/release/satisfactory_factory_planner.exe recipes.json
+      run: Compress-Archive -Path target/release/satisfactory_factory_planner.exe, recipes.json -DestinationPath satisfactory_factory_planner.zip
+      shell: pwsh
 
     - name: Get commit messages
       id: get_commits
       run: |
-        COMMITS=$(git log $(git rev-list --tags --max-count=1)..HEAD --pretty=format:"- %s")
+        $COMMITS = git log $(git rev-list --tags --max-count=1)..HEAD --pretty=format:"- %s"
         echo "::set-output name=commits::$COMMITS"
+      shell: pwsh
 
     - name: Create Release and Upload Asset
       uses: softprops/action-gh-release@v1
