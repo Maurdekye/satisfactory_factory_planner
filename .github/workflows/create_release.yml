@@ -15,7 +15,7 @@ permissions:
   
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     
     steps:
     - name: Checkout code
@@ -44,9 +44,6 @@ jobs:
 
     - name: Build project
       run: cargo build --release
-
-    - name: List build output
-      run: ls -l target/release/
       
     - name: Zip files
       run: |
