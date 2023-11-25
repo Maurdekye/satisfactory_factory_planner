@@ -3,30 +3,6 @@ use regex::Regex;
 use serde::Deserialize;
 use std::{collections::HashMap, fmt::Display, fs};
 
-/// Satisfactory Factory Planning Utility
-#[derive(Parser, Debug)]
-#[command(author, version, about, long_about = None)]
-struct Args {
-    /// Product(s) to create, in the form `<name>[:rate][,<name>[:rate][...]]` etc.
-    #[arg(required = true)]
-    want: String,
-
-    /// Ingredients that you have access to, in the form `<name>[:rate][,<name>[:rate][...]]` etc.
-    have: Option<String>,
-
-    /// Convert final machine counts to perfect split whole numbers, and list the underclocks for them
-    #[arg(long, short, action = clap::ArgAction::SetTrue)]
-    show_perfect_splits: bool,
-
-    /// If not enough resources are available, then resupply more to fulfill the requested quota, instead of limiting the output totals
-    #[arg(long, short, action = clap::ArgAction::SetTrue)]
-    resupply_insufficient: bool,
-
-    /// Config file containing crafting recipes
-    #[arg(long, short, default_value = "recipes.json")]
-    recipe_config: String
-}
-
 #[derive(Deserialize, Clone)]
 struct Recipe {
     machine: String,
@@ -692,6 +668,30 @@ fn load_recipes(file: &str) -> HashMap<String, Recipe> {
         })
         .flatten()
         .collect()
+}
+
+/// Satisfactory Factory Planning Utility
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    /// Product(s) to create, in the form `<name>[:rate][,<name>[:rate][...]]` etc.
+    #[arg(required = true)]
+    want: String,
+
+    /// Ingredients that you have access to, in the form `<name>[:rate][,<name>[:rate][...]]` etc.
+    have: Option<String>,
+
+    /// Convert final machine counts to perfect split whole numbers, and list the underclocks for them
+    #[arg(long, short, action = clap::ArgAction::SetTrue)]
+    show_perfect_splits: bool,
+
+    /// If not enough resources are available, then resupply more to fulfill the requested quota, instead of limiting the output totals
+    #[arg(long, short, action = clap::ArgAction::SetTrue)]
+    resupply_insufficient: bool,
+
+    /// Config file containing crafting recipes
+    #[arg(long, short='c', default_value = "recipes.json")]
+    recipe_config: String
 }
 
 fn main() {
