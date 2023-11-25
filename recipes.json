@@ -118,6 +118,15 @@
         ]
     },
     {
+        "machine": "Constructor",
+        "ingredients": [
+            ["Caterium Ingot", 12]
+        ],
+        "products": [
+            ["Quickwire", 60]
+        ]
+    },
+    {
         "machine": "Assembler",
         "ingredients": [
             ["Iron Plate", 30],
@@ -309,6 +318,15 @@
         ],
         "products": [
             ["Copper Ingot", 30]
+        ]
+    },
+    {
+        "machine": "Smeltery",
+        "ingredients": [
+            ["Caterium Ore", 45]
+        ],
+        "products": [
+            ["Caterium Ingot", 15]
         ]
     }
 ]

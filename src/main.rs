@@ -1,7 +1,11 @@
 use clap::Parser;
 use regex::Regex;
 use serde::Deserialize;
-use std::{collections::HashMap, fmt::Display, fs};
+use std::{
+    collections::{HashMap, HashSet},
+    fmt::Display,
+    fs,
+};
 
 #[macro_export]
 macro_rules! debug {
@@ -46,10 +50,12 @@ impl Product {
             *quantity *= adjustment;
             match source {
                 Source::Recipe {
+                    machine_quantity,
                     ingredients,
                     byproducts,
                     ..
                 } => {
+                    *machine_quantity *= adjustment;
                     ingredients
                         .iter_mut()
                         .for_each(|ingredient| ingredient.adjust_quantities(adjustment));
@@ -764,7 +770,7 @@ fn resolve_dependency_trees(
 }
 
 fn parse_product_list(
-    recipes: &HashMap<String, Recipe>,
+    products: &HashSet<String>,
     raw: &String,
 ) -> Vec<(String, Option<f32>)> {
     let part_pattern = Regex::new(r"^([^:]*)(:\s*(\d+(\.\d+)?|\.\d+))?$").unwrap();
@@ -775,9 +781,8 @@ fn parse_product_list(
                 Some(captures) => {
                     let raw_name = captures.get(1).unwrap().as_str().to_string();
                     (
-                        recipes
+                        products
                             .iter()
-                            .map(|(full_name, _)| full_name)
                             .find(|full_name| full_name.to_lowercase() == raw_name)
                             .unwrap_or(&raw_name)
                             .clone(),
@@ -789,9 +794,12 @@ fn parse_product_list(
         .collect()
 }
 
-fn load_recipes(file: &str) -> HashMap<String, Recipe> {
-    serde_json::from_str::<Vec<Recipe>>(fs::read_to_string(file).unwrap().as_str())
-        .unwrap()
+fn load_recipes(file: &str) -> (HashMap<String, Recipe>, HashSet<String>) {
+    let recipe_list =
+        serde_json::from_str::<Vec<Recipe>>(fs::read_to_string(file).unwrap().as_str()).unwrap();
+
+    let recipe_map = recipe_list
+        .clone()
         .into_iter()
         .map(|recipe| {
             recipe
@@ -801,7 +809,27 @@ fn load_recipes(file: &str) -> HashMap<String, Recipe> {
                 .collect::<Vec<_>>()
         })
         .flatten()
-        .collect()
+        .collect();
+
+    let ingredient_set = recipe_list
+        .into_iter()
+        .map(|recipe| {
+            recipe
+                .ingredients
+                .into_iter()
+                .map(|(ingredient, _)| ingredient)
+                .chain(
+                    recipe
+                        .products
+                        .into_iter()
+                        .map(|(product, _)| product)
+                        .collect::<Vec<_>>(),
+                )
+        })
+        .flatten()
+        .collect();
+
+    (recipe_map, ingredient_set)
 }
 
 /// Satisfactory Factory Planning Utility
@@ -818,7 +846,7 @@ struct Args {
     #[arg(long, short, action = clap::ArgAction::SetTrue)]
     show_perfect_splits: bool,
 
-    /// If not enough resources are available, then resupply more to fulfill the requested quota, instead of limiting the output totals
+    /// If not enough input resources are available, then resupply more to fulfill the requested quota, instead of limiting the output totals
     #[arg(long, short, action = clap::ArgAction::SetTrue)]
     resupply_insufficient: bool,
 
@@ -832,16 +860,16 @@ fn main() {
     #[cfg(not(debug_assertions))]
     let args = Args::parse();
     #[cfg(debug_assertions)]
-    let args = Args::parse_from(vec!["_", "plastic:40,fuel", "--resupply-insufficient"]);
+    let args = Args::parse_from(vec!["_", "quickwire", "caterium ore:240"]);
 
     // compute recipe map
-    let recipes = load_recipes(&args.recipe_config);
+    let (recipes, product_set) = load_recipes(&args.recipe_config);
 
     // parse lists of desired outputs and available inputs
-    let want_list = parse_product_list(&recipes, &args.want);
+    let want_list = parse_product_list(&product_set, &args.want);
     let have_list = args
         .have
-        .map_or_else(|| Vec::new(), |have| parse_product_list(&recipes, &have));
+        .map_or_else(|| Vec::new(), |have| parse_product_list(&product_set, &have));
 
     // Compute recipe dependencies
     let (tree, totals) =
