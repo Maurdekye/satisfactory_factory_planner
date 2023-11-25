@@ -32,10 +32,14 @@ jobs:
     - name: Check if release already exists
       id: check_release
       run: |
-        $HTTP_STATUS = Invoke-WebRequest -Uri "https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ steps.get_version.outputs.version }}" -Headers @{"Authorization"="token ${{ secrets.GITHUB_TOKEN }}"} -Method Get -StatusCodeVariable statusCode -ErrorAction SilentlyContinue
-        if ($statusCode -ne 404) {
+        try {
+          $response = Invoke-WebRequest -Uri "https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ steps.get_version.outputs.version }}" -Headers @{"Authorization"="token ${{ secrets.GITHUB_TOKEN }}"} -Method Get -ErrorAction Stop
           Write-Host "Release already exists"
           exit 1
+        } catch {
+          if ($_.Exception.Response.StatusCode -ne 404) {
+            throw $_
+          }
         }
 
     - name: Setup Rust
