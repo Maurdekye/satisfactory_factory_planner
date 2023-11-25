@@ -338,45 +338,65 @@ fn resolve_product_dependencies(
     recipes: &HashMap<String, Recipe>,
     product: &mut Product,
     available_ingredients: &Vec<String>,
+    available_byproducts: &HashMap<String, f32>,
 ) {
+    // iterate down the tree to hit every node
     for (_, source) in product.sources.iter_mut() {
         match source {
-            Source::Recipe { ingredients, .. } => {
+            Source::Recipe {
+                ingredients,
+                byproducts,
+                ..
+            } => {
+                let byproducts_map = byproducts.clone().into_iter().collect::<HashMap<_, _>>();
                 for ingredient in ingredients.iter_mut() {
                     resolve_product_dependencies(
                         recipes,
                         ingredient,
                         available_ingredients,
+                        &available_byproducts
+                            .iter()
+                            .map(|(byproduct, quantity)| {
+                                (
+                                    byproduct.clone(),
+                                    quantity - byproducts_map.get(byproduct).unwrap_or(&0.0),
+                                )
+                            })
+                            .collect(),
                     )
                 }
             }
             _ => (),
         }
     }
-    match if available_ingredients.contains(&product.name) {
-        None
-    } else {
-        recipes.get(&product.name)
-    } {
-        Some(recipe) => {
-            if product.unsupplied > 0.0 {
-                // determine production ratio
-                let production_ratio = product.unsupplied
-                    / recipe
-                        .products
-                        .iter()
-                        .find(|(recipe_product, _)| *recipe_product == product.name)
-                        .expect("Recipe in value missing product from its key?!")
-                        .1;
 
-                // compute ingredient dependencies
-                product.sources.push((
-                    product.unsupplied,
-                    Source::Recipe {
-                        machine: recipe.machine.clone(),
-                        machine_quantity: production_ratio,
+    // cater to unsupplied required resources
+    if product.unsupplied > 0.0 {
+        if available_ingredients.contains(&product.name) {
+            product.sources.push((product.unsupplied, Source::Supply));
+        } else if available_byproducts
+            .get(&product.name)
+            .map_or(false, |quantity| *quantity > 0.0)
+        {
+            product
+                .sources
+                .push((product.unsupplied, Source::Byproduct));
+        } else {
+            match recipes.get(&product.name) {
+                None => product.sources.push((product.unsupplied, Source::Supply)),
+                Some(recipe) => {
+                    if product.unsupplied > 0.0 {
+                        // determine production ratio
+                        let production_ratio = product.unsupplied
+                            / recipe
+                                .products
+                                .iter()
+                                .find(|(recipe_product, _)| *recipe_product == product.name)
+                                .expect("Recipe in value missing product from its key?!")
+                                .1;
 
-                        byproducts: recipe
+                        // compute ingredient dependencies
+                        let byproducts = recipe
                             .products
                             .iter()
                             .filter_map(|(recipe_product, quantity)| {
@@ -386,35 +406,53 @@ fn resolve_product_dependencies(
                                     None
                                 }
                             })
-                            .collect(),
+                            .collect::<Vec<(String, f32)>>();
+                        let byproducts_map =
+                            byproducts.clone().into_iter().collect::<HashMap<_, _>>();
 
-                        ingredients: recipe
-                            .ingredients
-                            .iter()
-                            .map(|(recipe_product, quantity)| {
-                                let mut inner_product = Product {
-                                    name: recipe_product.clone(),
-                                    unsupplied: quantity * production_ratio,
-                                    sources: Vec::new(),
-                                };
-                                resolve_product_dependencies(
-                                    recipes,
-                                    &mut inner_product,
-                                    available_ingredients,
-                                );
-                                inner_product
-                            })
-                            .collect(),
-                    },
-                ));
-            }
+                        product.sources.push((
+                            product.unsupplied,
+                            Source::Recipe {
+                                machine: recipe.machine.clone(),
+                                machine_quantity: production_ratio,
+
+                                byproducts,
+                                ingredients: recipe
+                                    .ingredients
+                                    .iter()
+                                    .map(|(recipe_product, quantity)| {
+                                        let mut inner_product = Product {
+                                            name: recipe_product.clone(),
+                                            unsupplied: quantity * production_ratio,
+                                            sources: Vec::new(),
+                                        };
+                                        resolve_product_dependencies(
+                                            recipes,
+                                            &mut inner_product,
+                                            available_ingredients,
+                                            &available_byproducts
+                                                .iter()
+                                                .map(|(byproduct, quantity)| {
+                                                    (
+                                                        byproduct.clone(),
+                                                        quantity
+                                                            - byproducts_map
+                                                                .get(byproduct)
+                                                                .unwrap_or(&0.0),
+                                                    )
+                                                })
+                                                .collect(),
+                                        );
+                                        inner_product
+                                    })
+                                    .collect(),
+                            },
+                        ));
+                    }
+                }
+            };
         }
-        None => {
-            if product.unsupplied > 0.0 {
-                product.sources.push((product.unsupplied, Source::Supply));
-            }
-        }
-    };
+    }
     product.unsupplied = 0.0;
 }
 
@@ -476,6 +514,8 @@ fn resolve_dependency_trees(
     let mut ingredients = ingredients.into_iter().collect::<HashMap<_, _>>();
     debug!(&ingredients);
 
+    let mut input_byproducts = HashMap::new();
+
     // fetch list of requests with specific quantities
     let quantity_requested_trees = {
         let mut trees = products
@@ -491,78 +531,135 @@ fn resolve_dependency_trees(
         debug!(&trees);
 
         if !trees.is_empty() {
-            let ingredient_set = ingredients.iter().map(|(i, _)| i.clone()).collect();
-            debug!(&ingredient_set);
+            let mut totals;
+            let mut byproduct_set = HashMap::new();
 
-            for tree in &mut trees {
-                resolve_product_dependencies(recipes, tree, &ingredient_set);
-            }
-            debug!(&trees);
+            loop {
+                debug!(&byproduct_set);
 
-            let mut totals = DependencyResolutionTotals::from(&trees);
-            debug!(&totals);
+                let ingredient_set = ingredients.iter().map(|(i, _)| i.clone()).collect();
+                debug!(&ingredient_set);
 
-            let initial_supply_proportions = compute_supply_proportions(&totals, &ingredients);
-            debug!(&initial_supply_proportions);
-
-            let mut insufficient_ingredients = initial_supply_proportions
-                .clone()
-                .into_iter()
-                .filter(|(_, proportion)| *proportion < 1.0)
-                .collect::<HashMap<_, _>>();
-            debug!(&insufficient_ingredients);
-
-            // adjust output if some provided quantities are insufficient
-            while !insufficient_ingredients.is_empty() {
-                if resupply_insufficient {
-                    // resupply insufficient supplies
-                    let ingredient_set_sans_resupplies = ingredients
-                        .iter()
-                        .filter(|(ingredient, _)| {
-                            !insufficient_ingredients.contains_key(*ingredient)
-                        })
-                        .map(|(ingredient, _)| ingredient.clone())
-                        .collect();
-                    debug!(&ingredient_set_sans_resupplies);
-
-                    for tree in &mut trees {
-                        apply_insufficient_supply_proportions(
-                            recipes,
-                            tree,
-                            &insufficient_ingredients,
-                        );
-                        debug!(&tree);
-                        resolve_product_dependencies(
-                            recipes,
-                            tree,
-                            &ingredient_set_sans_resupplies,
-                        );
-                    }
-                    debug!(&trees);
-                } else {
-                    // adjust output to accommodate for lowest supplied ingredient
-                    let lowest_supply = initial_supply_proportions
-                        .iter()
-                        .map(|(_, quantity)| *quantity)
-                        .min_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-                    debug!(&lowest_supply);
-
-                    lowest_supply.map(|supply| {
-                        for tree in &mut trees {
-                            tree.adjust_quantities(supply);
-                        }
-                        debug!(&trees);
-                    });
+                for tree in &mut trees {
+                    resolve_product_dependencies(recipes, tree, &ingredient_set, &byproduct_set);
                 }
+                debug!(&trees);
+
                 totals = DependencyResolutionTotals::from(&trees);
                 debug!(&totals);
 
-                insufficient_ingredients = compute_supply_proportions(&totals, &ingredients)
+                let initial_supply_proportions = compute_supply_proportions(&totals, &ingredients);
+                debug!(&initial_supply_proportions);
+
+                let mut insufficient_ingredients = initial_supply_proportions
                     .clone()
                     .into_iter()
                     .filter(|(_, proportion)| *proportion < 1.0)
                     .collect::<HashMap<_, _>>();
                 debug!(&insufficient_ingredients);
+
+                let byproduct_some_set = byproduct_set
+                    .clone()
+                    .into_iter()
+                    .map(|(byproduct, quantity)| (byproduct, Some(quantity)))
+                    .collect();
+
+                let mut insufficient_byproduct_inputs =
+                    compute_supply_proportions(&totals, &byproduct_some_set)
+                        .into_iter()
+                        .filter(|(_, proportion)| *proportion < 1.0)
+                        .collect::<HashMap<_, _>>();
+
+                // adjust output if some provided quantities are insufficient
+                while !insufficient_ingredients.is_empty()
+                    || !insufficient_byproduct_inputs.is_empty()
+                {
+                    if !insufficient_ingredients.is_empty() {
+                        if resupply_insufficient {
+                            // resupply insufficient supplies
+                            let ingredient_set_sans_resupplies = ingredients
+                                .iter()
+                                .filter(|(ingredient, _)| {
+                                    !insufficient_ingredients.contains_key(*ingredient)
+                                })
+                                .map(|(ingredient, _)| ingredient.clone())
+                                .collect();
+                            debug!(&ingredient_set_sans_resupplies);
+
+                            for tree in &mut trees {
+                                apply_insufficient_supply_proportions(
+                                    recipes,
+                                    tree,
+                                    &insufficient_ingredients,
+                                );
+                                debug!(&tree);
+                                resolve_product_dependencies(
+                                    recipes,
+                                    tree,
+                                    &ingredient_set_sans_resupplies,
+                                    &byproduct_set,
+                                );
+                            }
+                            debug!(&trees);
+                        } else {
+                            // adjust output to accommodate for lowest supplied ingredient
+                            let lowest_supply = initial_supply_proportions
+                                .iter()
+                                .map(|(_, quantity)| *quantity)
+                                .min_by(|a, b| {
+                                    a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)
+                                });
+                            debug!(&lowest_supply);
+
+                            lowest_supply.map(|supply| {
+                                for tree in &mut trees {
+                                    tree.adjust_quantities(supply);
+                                }
+                                debug!(&trees);
+                            });
+                        }
+                    }
+
+                    if !insufficient_byproduct_inputs.is_empty() {
+                        for tree in &mut trees {
+                            apply_insufficient_supply_proportions(
+                                recipes,
+                                tree,
+                                &insufficient_byproduct_inputs,
+                            );
+                            debug!(&tree);
+                            resolve_product_dependencies(
+                                recipes,
+                                tree,
+                                &ingredient_set,
+                                &byproduct_set,
+                            );
+                        }
+                        debug!(&trees);
+                    }
+
+                    totals = DependencyResolutionTotals::from(&trees);
+                    debug!(&totals);
+
+                    insufficient_ingredients = compute_supply_proportions(&totals, &ingredients)
+                        .into_iter()
+                        .filter(|(_, proportion)| *proportion < 1.0)
+                        .collect::<HashMap<_, _>>();
+                    debug!(&insufficient_ingredients);
+
+                    insufficient_byproduct_inputs =
+                        compute_supply_proportions(&totals, &byproduct_some_set)
+                            .into_iter()
+                            .filter(|(_, proportion)| *proportion < 1.0)
+                            .collect::<HashMap<_, _>>();
+                }
+
+                if byproduct_set == totals.byproducts {
+                    input_byproducts = byproduct_set;
+                    break;
+                } else {
+                    byproduct_set = totals.byproducts;
+                }
             }
 
             // adjust available ingredients
@@ -605,33 +702,51 @@ fn resolve_dependency_trees(
         debug!(&trees);
 
         if !trees.is_empty() {
-            let ingredient_set = ingredients.iter().map(|(i, _)| i.clone()).collect();
-            debug!(&ingredient_set);
+            let mut byproduct_set = HashMap::new();
+            loop {
+                let all_byproducts = byproduct_set
+                    .clone()
+                    .into_iter()
+                    .chain(input_byproducts.clone().into_iter())
+                    .collect();
+                debug!(&all_byproducts);
 
-            for tree in &mut trees {
-                resolve_product_dependencies(recipes, tree, &ingredient_set);
-            }
-            debug!(&trees);
+                let ingredient_set = ingredients.iter().map(|(i, _)| i.clone()).collect();
+                debug!(&ingredient_set);
 
-            let totals = DependencyResolutionTotals::from(&trees);
-            debug!(&totals);
-
-            let initial_supply_proportions = compute_supply_proportions(&totals, &ingredients);
-            debug!(&initial_supply_proportions);
-
-            // adjust output to acommodate for lowest supplied ingredient
-            let lowest_supply = initial_supply_proportions
-                .iter()
-                .map(|(_, quantity)| *quantity)
-                .min_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-            debug!(&lowest_supply);
-
-            lowest_supply.map(|supply| {
                 for tree in &mut trees {
-                    tree.adjust_quantities(supply);
+                    resolve_product_dependencies(recipes, tree, &ingredient_set, &all_byproducts);
                 }
                 debug!(&trees);
-            });
+
+                let mut totals = DependencyResolutionTotals::from(&trees);
+                debug!(&totals);
+
+                let initial_supply_proportions = compute_supply_proportions(&totals, &ingredients);
+                debug!(&initial_supply_proportions);
+
+                // adjust output to acommodate for lowest supplied ingredient
+                let lowest_supply = initial_supply_proportions
+                    .iter()
+                    .map(|(_, quantity)| *quantity)
+                    .min_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+                debug!(&lowest_supply);
+
+                lowest_supply.map(|supply| {
+                    for tree in &mut trees {
+                        tree.adjust_quantities(supply);
+                    }
+                    debug!(&trees);
+                });
+
+                totals = DependencyResolutionTotals::from(&trees);
+
+                if byproduct_set == totals.byproducts {
+                    break;
+                } else {
+                    byproduct_set = totals.byproducts;
+                }
+            }
         }
         trees
     };
@@ -717,7 +832,7 @@ fn main() {
     #[cfg(not(debug_assertions))]
     let args = Args::parse();
     #[cfg(debug_assertions)]
-    let args = Args::parse_from(vec!["_", "modular frame:2", "iron plate:4,iron ingot:20", "--resupply-insufficient"]);
+    let args = Args::parse_from(vec!["_", "plastic:40,fuel", "--resupply-insufficient"]);
 
     // compute recipe map
     let recipes = load_recipes(&args.recipe_config);

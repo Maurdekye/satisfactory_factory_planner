@@ -45,6 +45,9 @@ jobs:
     - name: Build project
       run: cargo build --release
 
+    - name: List build output
+      run: ls -l target/release/
+      
     - name: Zip files
       run: |
         zip satisfactory_factory_planner.zip target/release/satisfactory_factory_planner.exe recipes.json
