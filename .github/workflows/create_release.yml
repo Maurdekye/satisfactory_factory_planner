@@ -23,17 +23,18 @@ jobs:
 
     - name: Get version
       id: get_version
+      shell: pwsh
       run: |
-        $content = Get-Content -Path .\Cargo.toml
-        $versionLine = $content | Select-String -Pattern 'version = ".*"'
-        $version = $versionLine -replace 'version = "', '' -replace '"', ''
+        $content = Get-Content -Path .\Cargo.toml -Raw
+        $version = ($content | ConvertFrom-StringData).version
         echo "::set-output name=version::v$version"
 
     - name: Check if release already exists
       id: check_release
+      shell: pwsh
       run: |
         try {
-          $response = Invoke-WebRequest -Uri "https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ steps.get_version.outputs.version }}" -Headers @{"Authorization"="token ${{ secrets.GITHUB_TOKEN }}"} -Method Get -ErrorAction Stop
+          $response = Invoke-WebRequest -Uri "https://api.github.com/repos/${{ github.repository }}/releases/tags/v${{ steps.get_version.outputs.version }}" -Headers @{"Authorization"="token ${{ secrets.GITHUB_TOKEN }}"} -Method Get -ErrorAction Stop
           Write-Host "Release already exists"
           exit 1
         } catch {
@@ -57,6 +58,7 @@ jobs:
 
     - name: Get commit messages
       id: get_commits
+      shell: pwsh
       run: |
         $COMMITS = git log $(git rev-list --tags --max-count=1)..HEAD --pretty=format:"- %s"
         echo "::set-output name=commits::$COMMITS"
