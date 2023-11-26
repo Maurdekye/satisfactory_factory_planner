@@ -1,4 +1,4 @@
-use clap::{Parser, ArgAction};
+use clap::{ArgAction, Parser};
 use regex::Regex;
 use serde::Deserialize;
 use std::{
@@ -259,15 +259,28 @@ struct DependencyResolutionTotalsDisplay<'a> {
 
 impl Display for DependencyResolutionTotalsDisplay<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let unused_byproducts = self
+            .totals
+            .byproducts
+            .iter()
+            .filter_map(|(byproduct, quantity_produced)| {
+                let quantity_used = self.totals.byproduct_inputs.get(byproduct).unwrap_or(&0.0);
+                if quantity_used >= quantity_produced {
+                    None
+                } else {
+                    Some((byproduct.clone(), quantity_produced - quantity_used))
+                }
+            })
+            .collect();
+
         for (heading, product_list) in vec![
             ("Input Ingredients:", &self.totals.inputs),
-            ("Reused Byproducts:", &self.totals.byproduct_inputs),
             (
                 "Intermediate Ingredients:",
                 &self.totals.intermediate_ingredients,
             ),
             ("Output Products:", &self.totals.outputs),
-            ("Byproducts:", &self.totals.byproducts),
+            ("Byproducts:", &unused_byproducts),
         ] {
             if !product_list.is_empty() {
                 writeln!(f, "{heading}")?;
@@ -278,6 +291,8 @@ impl Display for DependencyResolutionTotalsDisplay<'_> {
                 writeln!(f)?;
             }
         }
+
+        if !self.totals.byproducts.is_empty() {}
 
         writeln!(f, "Machines:")?;
         for (machine, machine_products) in self.totals.machines.iter() {
@@ -476,13 +491,6 @@ fn apply_insufficient_supply_proportions(
 ) {
     for (quantity, source) in product.sources.iter_mut() {
         match source {
-            Source::Supply => {
-                resupply_proportions.get(&product.name).map(|proportion| {
-                    let new_quantity = *quantity * proportion;
-                    product.unsupplied = *quantity - new_quantity;
-                    *quantity = new_quantity;
-                });
-            }
             Source::Recipe { ingredients, .. } => {
                 for ingredient in ingredients.iter_mut() {
                     apply_insufficient_supply_proportions(
@@ -492,7 +500,13 @@ fn apply_insufficient_supply_proportions(
                     );
                 }
             }
-            _ => (),
+            _ => {
+                resupply_proportions.get(&product.name).map(|proportion| {
+                    let new_quantity = *quantity * proportion;
+                    product.unsupplied = *quantity - new_quantity;
+                    *quantity = new_quantity;
+                });
+            }
         }
     }
     product.sources.retain(|(quantity, _)| *quantity > 0.0);
@@ -532,6 +546,7 @@ fn resolve_dependency_trees(
 
     loop {
         let mut input_byproducts = initial_byproducts.clone();
+        debug!(&input_byproducts);
 
         // fetch list of requests with specific quantities
         let quantity_requested_trees = {
@@ -548,8 +563,6 @@ fn resolve_dependency_trees(
             debug!(&trees);
 
             if !trees.is_empty() {
-                let mut totals;
-
                 let ingredient_set = ingredients.iter().map(|(i, _)| i.clone()).collect();
                 debug!(&ingredient_set);
 
@@ -558,7 +571,7 @@ fn resolve_dependency_trees(
                 }
                 debug!(&trees);
 
-                totals = DependencyResolutionTotals::from(&trees);
+                let mut totals = DependencyResolutionTotals::from(&trees);
                 debug!(&totals);
 
                 let initial_supply_proportions =
@@ -583,6 +596,7 @@ fn resolve_dependency_trees(
                         .into_iter()
                         .filter(|(_, proportion)| *proportion < 1.0)
                         .collect::<HashMap<_, _>>();
+                debug!(&insufficient_byproduct_inputs);
 
                 // adjust output if some provided quantities are insufficient
                 while !insufficient_ingredients.is_empty()
@@ -646,7 +660,7 @@ fn resolve_dependency_trees(
                                 recipes,
                                 tree,
                                 &ingredient_set,
-                                &input_byproducts,
+                                &HashMap::new(),
                             );
                         }
                         debug!(&trees);
@@ -748,7 +762,7 @@ fn resolve_dependency_trees(
                             .into_iter(),
                     )
                     .for_each(|(input, quantity)| {
-                        *supply_proportions.get_default(&input) += quantity; 
+                        *supply_proportions.get_default(&input) += quantity;
                     });
                 debug!(&supply_proportions);
 
@@ -778,7 +792,8 @@ fn resolve_dependency_trees(
         let totals = DependencyResolutionTotals::from(&trees);
         debug!(&totals);
 
-        if reuse_byproducts && totals.byproducts != input_byproducts {
+        debug!(&initial_byproducts);
+        if reuse_byproducts && totals.byproducts != initial_byproducts {
             initial_byproducts = totals.byproducts;
         } else {
             return (trees, totals);
@@ -895,8 +910,13 @@ fn main() {
     );
 
     // Compute recipe dependencies
-    let (tree, totals) =
-        resolve_dependency_trees(&recipes, want_list, have_list, args.resupply_insufficient, args.reuse_byproducts);
+    let (tree, totals) = resolve_dependency_trees(
+        &recipes,
+        want_list,
+        have_list,
+        args.resupply_insufficient,
+        args.reuse_byproducts,
+    );
 
     // Display tree
     println!("Tree:");
