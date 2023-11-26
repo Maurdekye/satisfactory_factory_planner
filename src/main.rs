@@ -883,7 +883,7 @@ struct Args {
     #[arg(long, short, action = ArgAction::SetTrue)]
     resupply_insufficient: bool,
 
-    /// Config file containing crafting recipes
+    /// Specify a custom config file for crafting recipes
     #[arg(long, short = 'c', default_value = "recipes.json")]
     recipe_config: String,
 

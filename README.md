@@ -6,12 +6,11 @@ Tell it what you want to create and at what rates, and it will tell you what mac
 
 Additionally, tell it what resources you have access to, and it will adjust its output to compensate. If you provide information on what rate you produce those resources, it can tell you how much you can make with those resources, and which resource is the bottleneck to your production.
 
---- 
-
-### Sample Output
+## Sample Output
 
 ```
 >satisfactory_factory_planner.exe "computer: 5"
+
 Tree:
  * 5.00 Computer: 2.00 Manufacturer
    * 50.00 Circuit Board: 6.67 Assembler
@@ -71,9 +70,7 @@ Machines:
    - 8.17 for Copper Ingots
 ```
 
----
-
-### Example Usages
+## Example Usages
 
 * `satisfactory_factory_planner.exe "iron ingot: 120"` - Figure out how much iron ore & how many smelters you need to produce 120 iron ingots per minute
 
@@ -87,25 +84,154 @@ Machines:
 
 * `[.exe] "motor: 5, heavy modular frame: 10, cable: 50, plastic: 50"` - See what kind of factory would be needed to produce the ingredients for a single manufaturer every minute
 
----
-
-### Installation
+## Installation
 
 [Download the latest release zip](https://github.com/Maurdekye/satisfactory_factory_planner/releases), unzip `satisfactory_factory_planner.exe` and `recipes.json` to a folder, and run the executable from a command line.
 
----
+## Options
 
-### Known Flaws
+- `-s, --show-perfect-splits` - Convert final machine counts to perfect split whole numbers, and list the underclocks for them
+
+#### Example:
+
+```
+>[.exe] "steel beam: 50" --show-perfect-splits
+
+Tree:
+ * 50.00 Steel Beam: 3.33 Constructor
+   * 200.00 Steel Ingot: 4.44 Foundry
+     - 200.00 Iron Ore
+     - 200.00 Coal Ore
+
+Input Ingredients:
+ * 200.00 Coal Ore
+ * 200.00 Iron Ore
+
+Intermediate Ingredients:
+ * 200.00 Steel Ingot
+
+Output Products:
+ * 50.00 Steel Beam
+
+Machines:
+ * Foundry
+   - 4.44 for Steel Ingots, or 2^1 * 3^1 = 6 at 74.07%
+ * Constructor
+   - 3.33 for Steel Beams, or 2^2 * 3^0 = 4 at 83.33%
+```
+
+- `-r, --resupply-insufficient` - If not enough input resources are available, then resupply more to fulfill the requested quota, instead of limiting the output totals
+
+#### Example:
+
+```
+[.exe] "steel beam: 60" "steel ingot: 160" --resupply-insufficient
+
+Tree:
+ * 60.00 Steel Beam: 4.00 Constructor
+   - 160.00 Steel Ingot
+   * 80.00 Steel Ingot: 1.78 Foundry
+     - 80.00 Iron Ore
+     - 80.00 Coal Ore
+
+Input Ingredients:
+ * 160.00 Steel Ingot
+ * 80.00 Iron Ore
+ * 80.00 Coal Ore
+
+Intermediate Ingredients:
+ * 80.00 Steel Ingot
+
+Output Products:
+ * 60.00 Steel Beam
+
+Machines:
+ * Constructor
+   - 4.00 for Steel Beams
+ * Foundry
+   - 1.78 for Steel Ingots
+```
+
+- `-c, --recipe-config <RECIPE_CONFIG>`  
+Specify a custom config file for crafting recipes [default: recipes.json]
+
+#### Example:
+
+```
+[.exe] "steel beam: 60" --recipe-config my-recipes.json
+
+Tree:
+ * 60.00 Steel Beam: 4.00 Constructor
+   * 240.00 Steel Ingot: 4.00 Foundry
+     * 160.00 Iron Ingot: 5.33 Smeltery
+       - 160.00 Iron Ore
+     - 160.00 Coal Ore
+
+Input Ingredients:
+ * 160.00 Coal Ore
+ * 160.00 Iron Ore
+
+Intermediate Ingredients:
+ * 160.00 Iron Ingot
+ * 240.00 Steel Ingot
+
+Output Products:
+ * 60.00 Steel Beam
+
+Machines:
+ * Foundry
+   - 4.00 for Steel Ingots
+ * Constructor
+   - 4.00 for Steel Beams
+ * Smeltery
+   - 5.33 for Iron Ingots
+```
+- `-b, --reuse-byproducts` - !! EXPERIMENTAL !! Allow the reuse of byproduct outputs from the system as inputs
+
+#### Example:
+```
+[.exe] "plastic: 45, fuel: 20" --reuse-byproducts
+
+Tree:
+ * 45.00 Plastic: 2.25 Refinery
+   - 67.50 Crude Oil
+ > 22.50 Heavy Oil Residue
+
+ * 20.00 Fuel: 0.50 Refinery
+   < 22.50 Heavy Oil Residue
+   * 7.50 Heavy Oil Residue: 0.38 Refinery
+     - 11.25 Crude Oil
+   > 7.50 Rubber
+
+Input Ingredients:
+ * 78.75 Crude Oil
+
+Intermediate Ingredients:
+ * 7.50 Heavy Oil Residue
+
+Output Products:
+ * 20.00 Fuel
+ * 45.00 Plastic
+
+Byproducts:
+ * 7.50 Rubber
+
+Machines:
+ * Refinery
+   - 2.25 for Plastics
+   - 0.38 for Heavy Oil Residues
+   - 0.50 for Fuels
+```
+
+## Known Flaws
 
 * ~~Byproducts are not utilized in the production chain~~ **Enable experimental byproduct reuse with the `--reuse-byproducts` flag**
 * If multiple recipes to acquire a given resource exist, the program will choose one arbitrarily and use it exclusively. To ensure the program uses a specific recipe, you'll have to edit `recipes.json` and remove all alternative recipes.
 
----
-
-### Other Notes
+## Other Notes
 
 The recipe information the program draws from is contained inside `recipes.json`. Currently, the file only contains recipes up to Tier 6, as that's how far my friend and I are into our current playthrough. Additional recipes, if you like, can be added by modifying `recipes.json`. This is left as an exercise to the user :). Furthermore, no alternative unlockable recipes are programmed into the file, on account of the aformentioned flaw with regards to alternative recipes. If you would like the program to use an alternative recipe, I would recommend removing the basic recipe from the file, and replacing it with the alternative one.
 
 ---
-
+\
 I hope you enjoy using my program!~ ❤️
