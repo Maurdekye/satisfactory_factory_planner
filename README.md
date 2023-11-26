@@ -97,7 +97,7 @@ Machines:
 
 ### Known Flaws
 
-* Byproducts are not utilized in the production chain; they are simply ignored
+* ~~Byproducts are not utilized in the production chain~~ **Enable experimental byproduct reuse with the `--reuse-byproducts` flag**
 * If multiple recipes to acquire a given resource exist, the program will choose one arbitrarily and use it exclusively. To ensure the program uses a specific recipe, you'll have to edit `recipes.json` and remove all alternative recipes.
 
 ---
