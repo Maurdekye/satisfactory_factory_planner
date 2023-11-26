@@ -1,15 +1,5 @@
 [
     {
-        "machine": "Foundry",
-        "ingredients": [
-            ["Iron Ore", 45],
-            ["Coal Ore", 45]
-        ],
-        "products": [
-            ["Steel Ingot", 45]
-        ]
-    },
-    {
         "machine": "Constructor",
         "ingredients": [
             ["Iron Ingot", 30]
@@ -327,6 +317,16 @@
         ],
         "products": [
             ["Caterium Ingot", 15]
+        ]
+    },
+    {
+        "machine": "Foundry",
+        "ingredients": [
+            ["Iron Ore", 45],
+            ["Coal Ore", 45]
+        ],
+        "products": [
+            ["Steel Ingot", 45]
         ]
     }
 ]
