@@ -125,7 +125,7 @@ Machines:
 #### Example:
 
 ```
-[.exe] "steel beam: 60" "steel ingot: 160" --resupply-insufficient
+>[.exe] "steel beam: 60" "steel ingot: 160" --resupply-insufficient
 
 Tree:
  * 60.00 Steel Beam: 4.00 Constructor
@@ -158,7 +158,7 @@ Specify a custom config file for crafting recipes [default: recipes.json]
 #### Example:
 
 ```
-[.exe] "steel beam: 60" --recipe-config my-recipes.json
+>[.exe] "steel beam: 60" --recipe-config my-recipes.json
 
 Tree:
  * 60.00 Steel Beam: 4.00 Constructor
@@ -190,7 +190,7 @@ Machines:
 
 #### Example:
 ```
-[.exe] "plastic: 45, fuel: 20" --reuse-byproducts
+>[.exe] "plastic: 45, fuel: 20" --reuse-byproducts
 
 Tree:
  * 45.00 Plastic: 2.25 Refinery
