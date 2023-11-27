@@ -23,55 +23,57 @@ Tree:
          - 200.00 Copper Ore
      * 200.00 Plastic: 10.00 Refinery
        - 300.00 Crude Oil
+     < 100.00 Heavy Oil Residue
    * 45.00 Cable: 1.50 Constructor
      * 90.00 Wire: 3.00 Constructor
        * 45.00 Copper Ingot: 1.50 Smeltery
          - 45.00 Copper Ore
    * 90.00 Plastic: 4.50 Refinery
      - 135.00 Crude Oil
+   < 45.00 Heavy Oil Residue
    * 260.00 Screw: 6.50 Constructor
      * 65.00 Iron Rod: 4.33 Constructor
        * 65.00 Iron Ingot: 2.17 Smeltery
          - 65.00 Iron Ore
 
-Input ingredient totals:
- * 65.00 Iron Ore
+Input Ingredients:
  * 245.00 Copper Ore
  * 435.00 Crude Oil
+ * 65.00 Iron Ore
 
-Intermediate ingredient totals:
- * 65.00 Iron Rod
- * 260.00 Screw
- * 65.00 Iron Ingot
- * 45.00 Cable
- * 245.00 Copper Ingot
- * 290.00 Plastic
- * 50.00 Circuit Board
- * 100.00 Copper Sheet
+Intermediate Ingredients:
  * 90.00 Wire
+ * 245.00 Copper Ingot
+ * 100.00 Copper Sheet
+ * 65.00 Iron Ingot
+ * 260.00 Screw
+ * 290.00 Plastic
+ * 45.00 Cable
+ * 50.00 Circuit Board
+ * 65.00 Iron Rod
 
-Output product totals:
+Output Products:
  * 5.00 Computer
 
 Byproducts:
- * 20.00 Heavy Oil Residue
+ * 145.00 Heavy Oil Residue
 
 Machines:
- * Assembler
-   - 6.67 for Circuit Boards
- * Manufacturer
-   - 2.00 for Computers
  * Refinery
    - 14.50 for Plastics
+ * Assembler
+   - 6.67 for Circuit Boards
  * Constructor
-   - 3.00 for Wires
    - 10.00 for Copper Sheets
-   - 6.50 for Screws
-   - 1.50 for Cables
    - 4.33 for Iron Rods
+   - 6.50 for Screws
+   - 3.00 for Wires
+   - 1.50 for Cables
+ * Manufacturer
+   - 2.00 for Computers
  * Smeltery
-   - 2.17 for Iron Ingots
    - 8.17 for Copper Ingots
+   - 2.17 for Iron Ingots
 ```
 
 ## Example Usages
