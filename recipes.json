@@ -266,6 +266,16 @@
     {
         "machine": "Refinery",
         "ingredients": [
+            ["Crude Oil", 60]
+        ],
+        "products": [
+            ["Fuel", 40],
+            ["Polymer Resin", 30]
+        ]
+    },
+    {
+        "machine": "Refinery",
+        "ingredients": [
             ["Crude Oil", 30]
         ],
         "products": [

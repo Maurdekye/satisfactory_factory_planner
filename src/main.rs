@@ -18,6 +18,73 @@ macro_rules! debug {
     };
 }
 
+trait DefaultDict<K, V>
+where
+    K: Eq + PartialEq + std::hash::Hash + Clone,
+    V: Default,
+{
+    fn get_default(&mut self, key: &K) -> &mut V;
+}
+
+impl<K, V> DefaultDict<K, V> for HashMap<K, V>
+where
+    K: Eq + PartialEq + std::hash::Hash + Clone,
+    V: Default,
+{
+    fn get_default(&mut self, key: &K) -> &mut V {
+        self.entry(key.clone()).or_insert(V::default())
+    }
+}
+
+#[derive(Debug, Clone)]
+struct IndexedMap<K, V>
+where
+    K: std::hash::Hash + Eq + PartialEq,
+{
+    map: HashMap<K, Vec<V>>,
+    index: HashMap<K, usize>,
+}
+
+impl<K, V> IndexedMap<K, V>
+where
+    K: std::hash::Hash + Eq + PartialEq,
+{
+    fn new() -> IndexedMap<K, V> {
+        IndexedMap {
+            map: HashMap::new(),
+            index: HashMap::new(),
+        }
+    }
+
+    fn get(&self, key: &K) -> Option<&V> {
+        self.map.get(key).map(|value_list| {
+            value_list
+                .get(
+                    *self
+                        .index
+                        .get(key)
+                        .unwrap_or(&0)
+                        .clamp(&0, &(value_list.len() - 1)),
+                )
+                .unwrap()
+        })
+    }
+}
+
+impl<K, V, I> From<I> for IndexedMap<K, V>
+where
+    K: std::hash::Hash + Eq + PartialEq + Clone,
+    I: Iterator<Item = (K, V)>,
+{
+    fn from(value: I) -> Self {
+        let mut map = IndexedMap::new();
+        for (key, val) in value {
+            map.map.get_default(&key).push(val);
+        }
+        map
+    }
+}
+
 #[derive(Deserialize, Clone)]
 struct Recipe {
     machine: String,
@@ -115,7 +182,7 @@ impl Display for ProductDisplay {
                     for (byproduct, byproduct_quantity) in byproducts.iter() {
                         writeln!(
                             f,
-                            "{:>indent$} > {:.2} {}",
+                            "{:>indent$} < {:.2} {}",
                             "",
                             byproduct_quantity,
                             byproduct,
@@ -136,7 +203,7 @@ impl Display for ProductDisplay {
                 Source::Byproduct => {
                     writeln!(
                         f,
-                        "{:>indent$} < {:.2} {}",
+                        "{:>indent$} > {:.2} {}",
                         "",
                         quantity,
                         self.product.name,
@@ -146,16 +213,6 @@ impl Display for ProductDisplay {
             }
         }
         Ok(())
-    }
-}
-
-trait DefaultDict<K: Eq + PartialEq + std::hash::Hash + Clone, V: Default> {
-    fn get_default(&mut self, key: &K) -> &mut V;
-}
-
-impl<K: Eq + PartialEq + std::hash::Hash + Clone, V: Default> DefaultDict<K, V> for HashMap<K, V> {
-    fn get_default(&mut self, key: &K) -> &mut V {
-        self.entry(key.clone()).or_insert(V::default())
     }
 }
 
@@ -363,7 +420,7 @@ fn nearest_perfect_split(base_machine_count: u32) -> Option<(u32, u32, u32)> {
 }
 
 fn resolve_product_dependencies(
-    recipes: &HashMap<String, Recipe>,
+    recipes: &IndexedMap<String, Recipe>,
     product: &mut Product,
     available_ingredients: &Vec<String>,
     available_byproducts: &HashMap<String, f32>,
@@ -485,7 +542,7 @@ fn resolve_product_dependencies(
 }
 
 fn apply_insufficient_supply_proportions(
-    recipes: &HashMap<String, Recipe>,
+    recipes: &IndexedMap<String, Recipe>,
     product: &mut Product,
     resupply_proportions: &HashMap<String, f32>,
 ) {
@@ -533,7 +590,7 @@ fn compute_supply_proportions(
 }
 
 fn resolve_dependency_trees(
-    recipes: &HashMap<String, Recipe>,
+    recipes: &IndexedMap<String, Recipe>,
     products: Vec<(String, Option<f32>)>,
     ingredients: Vec<(String, Option<f32>)>,
     resupply_insufficient: bool,
@@ -801,35 +858,55 @@ fn resolve_dependency_trees(
     }
 }
 
+fn find_product_name(products: &HashSet<String>, name: &String) -> String {
+    let name = name.trim().to_lowercase();
+    products
+        .iter()
+        .find(|full_name| full_name.to_lowercase() == name)
+        .unwrap_or(&name)
+        .clone()
+}
+
 fn parse_product_list(products: &HashSet<String>, raw: &String) -> Vec<(String, Option<f32>)> {
     let part_pattern = Regex::new(r"^([^:]*)(:\s*(\d+(\.\d+)?|\.\d+))?$").unwrap();
     raw.split(",")
         .map(
             |part| match part_pattern.captures(part.trim().to_lowercase().as_str()) {
                 None => panic!("'{part}' is invalid!"),
-                Some(captures) => {
-                    let raw_name = captures.get(1).unwrap().as_str().to_string();
-                    (
-                        products
-                            .iter()
-                            .find(|full_name| full_name.to_lowercase() == raw_name)
-                            .unwrap_or(&raw_name)
-                            .clone(),
-                        captures.get(3).map(|m| m.as_str().parse().unwrap()),
-                    )
-                }
+                Some(captures) => (
+                    find_product_name(products, &captures.get(1).unwrap().as_str().to_string()),
+                    captures.get(3).map(|m| m.as_str().parse().unwrap()),
+                ),
             },
         )
         .collect()
 }
 
-fn load_recipes(file: &str) -> (HashMap<String, Recipe>, HashSet<String>) {
+fn parse_product_index_list(products: &HashSet<String>, raw: &String) -> HashMap<String, usize> {
+    let part_pattern = Regex::new(r"([^:]*):\s*(\d+)").unwrap();
+    raw.split(",")
+        .map(
+            |part| match part_pattern.captures(part.trim().to_lowercase().as_str()) {
+                None => panic!("'{part}' is invalid!"),
+                Some(captures) => (
+                    find_product_name(products, &captures.get(1).unwrap().as_str().to_string()),
+                    captures
+                        .get(2)
+                        .map(|m| m.as_str().parse().unwrap())
+                        .unwrap(),
+                ),
+            },
+        )
+        .collect()
+}
+
+fn load_recipes(file: &str) -> (IndexedMap<String, Recipe>, HashSet<String>) {
     let recipe_list = serde_json::from_str::<Vec<Recipe>>(
         fs::read_to_string(file)
             .expect(format!("{} not found!", file).as_str())
             .as_str(),
     )
-    .unwrap();
+    .expect(format!("{} is in an invalid format!", file).as_str());
 
     let recipe_map = recipe_list
         .clone()
@@ -842,7 +919,7 @@ fn load_recipes(file: &str) -> (HashMap<String, Recipe>, HashSet<String>) {
                 .collect::<Vec<_>>()
         })
         .flatten()
-        .collect();
+        .into();
 
     let ingredient_set = recipe_list
         .into_iter()
@@ -876,16 +953,25 @@ struct Args {
     have: Option<String>,
 
     /// Convert final machine counts to perfect split whole numbers, and list the underclocks for them
-    #[arg(long, short, action = ArgAction::SetTrue)]
+    #[arg(long, short = 'p', action = ArgAction::SetTrue)]
     show_perfect_splits: bool,
 
     /// If not enough input resources are available, then resupply more to fulfill the requested quota, instead of limiting the output totals
-    #[arg(long, short, action = ArgAction::SetTrue)]
+    #[arg(long, short = 's', action = ArgAction::SetTrue)]
     resupply_insufficient: bool,
 
     /// Specify a custom config file for crafting recipes
     #[arg(long, short = 'c', default_value = "recipes.json")]
     recipe_config: String,
+
+    /// List all recipes that produce the given product
+    #[arg(long, short = 'l', action = ArgAction::SetTrue)]
+    list_recipes: bool,
+
+    /// Provide overrides to existing recipes by passing a list of products and the associated recipe index to use to manufacture said product.
+    /// Syntax is name:index[,name:index[,...]]
+    #[arg(long, short = 'r')]
+    recipes: Option<String>,
 
     /// !! EXPERIMENTAL !! Allow the reuse of byproduct outputs from the system as inputs
     #[arg(long, short = 'b', action = ArgAction::SetTrue)]
@@ -900,36 +986,72 @@ fn main() {
     let args = Args::parse_from(vec!["_", "plastic:45,fuel:20", "--reuse-byproducts"]);
 
     // compute recipe map
-    let (recipes, product_set) = load_recipes(&args.recipe_config);
+    let (mut recipes, product_set) = load_recipes(&args.recipe_config);
 
-    // parse lists of desired outputs and available inputs
+    // parse lists of desired outputs
     let want_list = parse_product_list(&product_set, &args.want);
-    let have_list = args.have.map_or_else(
-        || Vec::new(),
-        |have| parse_product_list(&product_set, &have),
-    );
 
-    // Compute recipe dependencies
-    let (tree, totals) = resolve_dependency_trees(
-        &recipes,
-        want_list,
-        have_list,
-        args.resupply_insufficient,
-        args.reuse_byproducts,
-    );
-
-    // Display tree
-    println!("Tree:");
-    for node in tree {
-        println!("{node}");
-    }
-
-    // Display totals
-    println!(
-        "{}",
-        DependencyResolutionTotalsDisplay {
-            totals: &totals,
-            show_perfect_splits: args.show_perfect_splits
+    if args.list_recipes {
+        // list all recipes for the passed product
+        for (product, _) in want_list {
+            println!("{}:", product);
+            match recipes.map.get(&product) {
+                None => println!(" * No recipes for this product."),
+                Some(recipe_set) => {
+                    for (i, recipe) in recipe_set.iter().enumerate() {
+                        println!(" {}.", i + 1);
+                        println!("    Ingredients:");
+                        for (ingredient, quantity) in recipe.ingredients.iter() {
+                            println!("     - {:.2} {}/min", quantity, ingredient);
+                        }
+                        println!("    Products:");
+                        for (product, quantity) in recipe.products.iter() {
+                            println!("     - {:.2} {}/min", quantity, product);
+                        }
+                        println!();
+                    }
+                }
+            }
         }
-    );
+    } else {
+        // parse list of available inputs
+        let have_list = args.have.map_or_else(
+            || Vec::new(),
+            |have| parse_product_list(&product_set, &have),
+        );
+
+        // read recipe overrides
+        args.recipes.map(|recipe_overrides| {
+            recipes.index.extend(
+                parse_product_index_list(&product_set, &recipe_overrides)
+                    .into_iter()
+                    .map(|(product, index)| (product, index - 1)),
+            );
+        });
+
+        // Compute recipe dependencies
+        let (tree, totals) = resolve_dependency_trees(
+            &recipes,
+            want_list,
+            have_list,
+            args.resupply_insufficient,
+            args.reuse_byproducts,
+        );
+
+        // Display tree
+        println!();
+        println!("Tree:");
+        for node in tree {
+            println!("{node}");
+        }
+
+        // Display totals
+        println!(
+            "{}",
+            DependencyResolutionTotalsDisplay {
+                totals: &totals,
+                show_perfect_splits: args.show_perfect_splits
+            }
+        );
+    }
 }

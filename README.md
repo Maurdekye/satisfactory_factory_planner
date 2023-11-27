@@ -6,6 +6,10 @@ Tell it what you want to create and at what rates, and it will tell you what mac
 
 Additionally, tell it what resources you have access to, and it will adjust its output to compensate. If you provide information on what rate you produce those resources, it can tell you how much you can make with those resources, and which resource is the bottleneck to your production.
 
+## Installation
+
+[Download the latest release zip](https://github.com/Maurdekye/satisfactory_factory_planner/releases), unzip `satisfactory_factory_planner.exe` and `recipes.json` to a folder, and run the executable from a command line.
+
 ## Sample Output
 
 ```
@@ -84,13 +88,13 @@ Machines:
 
 * `[.exe] "motor: 5, heavy modular frame: 10, cable: 50, plastic: 50"` - See what kind of factory would be needed to produce the ingredients for a single manufaturer every minute
 
-## Installation
+## Further Usage Details
 
-[Download the latest release zip](https://github.com/Maurdekye/satisfactory_factory_planner/releases), unzip `satisfactory_factory_planner.exe` and `recipes.json` to a folder, and run the executable from a command line.
+By default, the program will choose the first applicable recipe from `recipes.json` for the product you are trying to create, and will use that to plan your factory. If you would like it to use an alternative recipe, you can list the recipes in the file for a product with `--list-recipes`, and then select that recipe for use in planning with `--recipes`. If the recipe you want isn't listed in the config file, then you may need to add it to the file yourself manually. 
 
 ## Options
 
-- `-s, --show-perfect-splits` - Convert final machine counts to perfect split whole numbers, and list the underclocks for them
+- `-p, --show-perfect-splits` - Convert final machine counts to perfect split whole numbers, and list the underclocks for them
 
 #### Example:
 
@@ -120,7 +124,7 @@ Machines:
    - 3.33 for Steel Beams, or 2^2 * 3^0 = 4 at 83.33%
 ```
 
-- `-r, --resupply-insufficient` - If not enough input resources are available, then resupply more to fulfill the requested quota, instead of limiting the output totals
+- `-s, --resupply-insufficient` - If not enough input resources are available, then resupply more to fulfill the requested quota, instead of limiting the output totals
 
 #### Example:
 
@@ -186,6 +190,78 @@ Machines:
  * Smeltery
    - 5.33 for Iron Ingots
 ```
+
+- `-l, --list-recipes` - List all recipes that produce the given products passed to \<WANT\>
+
+#### Example:
+```
+>[.exe] fuel --list-recipes
+
+Fuel:
+ 1.
+    Ingredients:
+     - 60.00 Crude Oil/min
+    Products:
+     - 40.00 Fuel/min
+     - 30.00 Polymer Resin/min
+
+ 2.
+    Ingredients:
+     - 60.00 Heavy Oil Residue/min
+    Products:
+     - 40.00 Fuel/min
+```
+
+- `-r, --recipes` - Specify by index the recipes you would like to use per each product. Syntax is `name:index[,name:index[,...]]`
+
+#### Example:
+```
+>[.exe] fuel:20 --recipes fuel:1
+
+Tree:
+ * 20.00 Fuel: 0.50 Refinery
+   - 30.00 Crude Oil
+ < 15.00 Polymer Resin
+
+Input Ingredients:
+ * 30.00 Crude Oil
+
+Output Products:
+ * 20.00 Fuel
+
+Byproducts:
+ * 15.00 Polymer Resin
+
+Machines:
+ * Refinery
+   - 0.50 for Fuels
+
+>[.exe] fuel:20 --recipes fuel:2
+
+Tree:
+ * 20.00 Fuel: 0.50 Refinery
+   * 30.00 Heavy Oil Residue: 3.00 Refinery
+     - 90.00 Crude Oil
+   < 60.00 Plastic
+
+Input Ingredients:
+ * 90.00 Crude Oil
+
+Intermediate Ingredients:
+ * 30.00 Heavy Oil Residue
+
+Output Products:
+ * 20.00 Fuel
+
+Byproducts:
+ * 60.00 Plastic
+
+Machines:
+ * Refinery
+   - 0.50 for Fuels
+   - 3.00 for Heavy Oil Residues
+```
+
 - `-b, --reuse-byproducts` - !! EXPERIMENTAL !! Allow the reuse of byproduct outputs from the system as inputs
 
 #### Example:
@@ -226,11 +302,10 @@ Machines:
 ## Known Flaws
 
 * ~~Byproducts are not utilized in the production chain~~ **Enable experimental byproduct reuse with the `--reuse-byproducts` flag**
-* If multiple recipes to acquire a given resource exist, the program will choose one arbitrarily and use it exclusively. To ensure the program uses a specific recipe, you'll have to edit `recipes.json` and remove all alternative recipes.
 
 ## Other Notes
 
-The recipe information the program draws from is contained inside `recipes.json`. Currently, the file only contains recipes up to Tier 6, as that's how far my friend and I are into our current playthrough. Additional recipes, if you like, can be added by modifying `recipes.json`. This is left as an exercise to the user :). Furthermore, no alternative unlockable recipes are programmed into the file, on account of the aformentioned flaw with regards to alternative recipes. If you would like the program to use an alternative recipe, I would recommend removing the basic recipe from the file, and replacing it with the alternative one.
+The recipe information the program draws from is contained inside `recipes.json`. Currently, the file only contains recipes up to Tier 7, as that's how far my friend and I are into our current playthrough. Additional recipes, if you like, can be added by modifying `recipes.json`. This is left as an exercise to the user :). Furthermore, no alternative unlockable recipes are programmed into the file, on account of me being lazy. If you would like the program to use an alternative recipe, I would recommend adding it yourself as it suits your needs in your own game.
 
 ---
 \

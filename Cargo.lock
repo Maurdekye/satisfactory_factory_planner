@@ -178,7 +178,7 @@ checksum = "1ad4cc8da4ef723ed60bced201181d83791ad433213d8c24efffda1eec85d741"
 
 [[package]]
 name = "satisfactory_factory_planner"
-version = "1.4.1"
+version = "1.5.0"
 dependencies = [
  "clap",
  "regex",
