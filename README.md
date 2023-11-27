@@ -90,7 +90,7 @@ Machines:
 
 ## Further Usage Details
 
-By default, the program will choose the first applicable recipe from `recipes.json` for the product you are trying to create, and will use that to plan your factory. If you would like it to use an alternative recipe, you can list the recipes in the file for a product with `--list-recipes`, and then select that recipe for use in planning with `--recipes`. If the recipe you want isn't listed in the config file, then you may need to add it to the file yourself manually. 
+By default, the program will choose the first applicable recipe from `recipes.json` for each of the products it utilizes, and will use those to plan your factory. If you would like it to use alternative recipes, you can list the recipes in the file for a given product with `--list-recipes`, and then select that recipe's index for use in planning with `--recipes`. If the recipe you want isn't listed in the config file, then you may need to add it to the file yourself manually. 
 
 ## Options
 
