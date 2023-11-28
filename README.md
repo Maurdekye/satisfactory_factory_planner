@@ -92,7 +92,11 @@ Machines:
 
 ## Further Usage Details
 
-By default, the program will choose the first applicable recipe from `recipes.json` for each of the products it utilizes, and will use those to plan your factory. If you would like it to use alternative recipes, you can list the recipes in the file for a given product with `--list-recipes`, and then select that recipe's index for use in planning with `--recipes`. If the recipe you want isn't listed in the config file, then you may need to add it to the file yourself manually. 
+By default, the program will choose the first applicable recipe from `recipes.json` for each of the products it utilizes, and will use those to plan your factory. If you would like it to use alternative recipes, you can list the recipes in the file for a given product with `--list-recipes`, and then select that recipe's index for use in planning with `--recipes`.
+
+### Updating Recipes
+
+The included `recipes.json` file was generated using the pair utility [Satisfactory Recipe Importer](https://github.com/Maurdekye/satisfactory-recipe-parser), using the `Docs.json` file included with Update 8 of Satisfactory. For future updates, you may need to re-run the utility to get up-to-date recipes. 
 
 ## Options
 
@@ -307,7 +311,9 @@ Machines:
 
 ## Other Notes
 
-The recipe information the program draws from is contained inside `recipes.json`. Currently, the file only contains recipes up to Tier 7, as that's how far my friend and I are into our current playthrough. Additional recipes, if you like, can be added by modifying `recipes.json`. This is left as an exercise to the user :). Furthermore, no alternative unlockable recipes are programmed into the file, on account of me being lazy. If you would like the program to use an alternative recipe, I would recommend adding it yourself as it suits your needs in your own game.
+The recipe information the program draws from is contained inside `recipes.json`. Currently, the file contains all recipes availabe within the game as of Update 8. This includes all alternative recipes. Additional recipes, if you like, can be added by modifying `recipes.json`. This is left as an exercise to the user :).
+
+If the game updates with new recipes, you can try running the [Satisfactory Recipe Importer](https://github.com/Maurdekye/satisfactory-recipe-parser) to automatically generate a new `recipes.json` file for the updated version of the game. 
 
 ---
 \
