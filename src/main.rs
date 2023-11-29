@@ -8,6 +8,19 @@ use std::{
     fs,
 };
 
+const BASIC_INGREDIENTS: [&str; 10] = [
+    "Coal",
+    "Limestone",
+    "Iron Ore",
+    "Copper Ore",
+    "Bauxite",
+    "Caterium Ore",
+    "Raw Quartz",
+    "Sulfur",
+    "Crude Oil",
+    "Water",
+];
+
 #[macro_export]
 macro_rules! debug {
     ($val:expr) => {
@@ -457,7 +470,9 @@ fn resolve_product_dependencies(
 
     // cater to unsupplied required resources
     if product.unsupplied > 0.0 {
-        if available_ingredients.contains(&product.name) {
+        if BASIC_INGREDIENTS.contains(&product.name.as_str())
+            || available_ingredients.contains(&product.name)
+        {
             product.sources.push((product.unsupplied, Source::Supply));
         } else if available_byproducts
             .get(&product.name)
@@ -983,7 +998,7 @@ fn main() {
     #[cfg(not(debug_assertions))]
     let args = Args::parse();
     #[cfg(debug_assertions)]
-    let args = Args::parse_from(vec!["_", "plastic:45,fuel:20", "--reuse-byproducts"]);
+    let args = Args::parse_from(vec!["_", "gas filter"]);
 
     // compute recipe map
     let (mut recipes, product_set) = load_recipes(&args.recipe_config);

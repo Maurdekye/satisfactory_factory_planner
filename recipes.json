@@ -1948,6 +1948,25 @@
     ]
   },
   {
+    "machine": "Refinery",
+    "ingredients": [
+      [
+        "Polymer Resin",
+        30.0
+      ],
+      [
+        "Water",
+        30.0
+      ]
+    ],
+    "products": [
+      [
+        "Fabric",
+        30.0
+      ]
+    ]
+  },
+  {
     "machine": "Assembler",
     "ingredients": [
       [
@@ -4395,25 +4414,6 @@
       [
         "Beacon",
         10.0
-      ]
-    ]
-  },
-  {
-    "machine": "Refinery",
-    "ingredients": [
-      [
-        "Polymer Resin",
-        30.0
-      ],
-      [
-        "Water",
-        30.0
-      ]
-    ],
-    "products": [
-      [
-        "Fabric",
-        30.0
       ]
     ]
   }
